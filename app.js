@@ -80,6 +80,11 @@ function ensureFields() {
   if (S.journalOn === undefined) S.journalOn = true;
   if (!S.journalSince) S.journalSince = ymd(new Date());
   if (!S.rosters) S.rosters = {};
+  if (!S.plans) S.plans = [];
+  if (window.PRESET && PRESET.plans && !S.planSeeded) {
+    PRESET.plans.forEach(function (p) { if (!S.plans.some(function (x) { return x.course === p.course; })) S.plans.push(Object.assign({ id: uid() }, p)); });
+    S.planSeeded = true;
+  }
   if (window.PRESET && PRESET.rosters && !S.rosterSeeded) {
     Object.keys(PRESET.rosters).forEach(function (cls) {
       if (!S.rosters[cls] || !S.rosters[cls].length) S.rosters[cls] = PRESET.rosters[cls].map(function (x) { return { id: String(x[0]), name: x[1], st: "在读" }; });
@@ -380,7 +385,8 @@ function journalCard(now) {
   var t = due[0], isToday = t.date === ymd(now);
   var h = '<div class="journal"><div class="jt">📒 ' + (isToday ? "今天的课上完了" : md(t.d) + " " + WD[dow(t.d)] + " 的课") + '</div>' +
     '<div class="jq">学校要求的「教学日志」填了吗？</div><div class="js">' + t.n + ' 节课 · 最后一节 ' + esc(short(t.last.co.cls)) + " " + pLabel(t.last.co.p) + '</div>' +
-    '<div class="jb"><button class="pbig" onclick="journalDone(\'' + t.date + '\')">✓ 已填写</button><button class="jlater" onclick="journalLater(\'' + t.date + '\')">1 小时后提醒</button></div>';
+    '<button class="pbig" onclick="openJournal(\'' + t.date + '\')">📋 复制教学内容</button>' +
+    '<div class="jb"><button class="jlater" style="flex:1.2" onclick="journalDone(\'' + t.date + '\')">✓ 已填写</button><button class="jlater" onclick="journalLater(\'' + t.date + '\')">1 小时后提醒</button></div>';
   if (due.length > 1) h += '<div class="js" style="margin-top:8px">另有 ' + due.slice(1).map(function (x) { return md(x.d); }).join("、") + ' 的日志未确认</div>';
   return h + '</div>';
 }
@@ -435,7 +441,7 @@ function renderHome() {
     if (lastPending) h += promptHtml(lastPending);
   }
 
-  h += '<div class="sect"><span>今天 · ' + WD[dow(now)] + (info.makeup ? "（" + esc(info.label) + "）" : "") + '</span><button onclick="addSheet(\'' + ymd(now) + '\')">＋ 临时加课</button></div>';
+  h += '<div class="sect"><span>今天 · ' + WD[dow(now)] + (info.makeup ? "（" + esc(info.label) + "）" : "") + '</span><span style="display:flex;gap:14px"><button onclick="openJournal(\'' + ymd(now) + '\')">📒 教学日志</button><button onclick="addSheet(\'' + ymd(now) + '\')">＋ 加课</button></span></div>';
   if (info.holiday) h += '<div class="row"><div class="m"><div class="c">🎉 ' + esc(info.label) + '</div><div class="s">今天不上课</div></div></div>';
   h += dayRows(now, today, true);
 
@@ -527,6 +533,7 @@ function occSheet(oid) {
     else h += '<button class="sec danger" onclick="cancelOcc(\'' + oid + '\')">本次停课</button>';
   }
   if (a && a.kind === "move") h += '<button class="sec" onclick="delAdj(\'' + a.id + '\')">↩ 恢复原来的时间和教室</button>';
+  h += '<button class="sec" onclick="openJournal(\'' + o.date + '\')">📒 教学日志 · 复制教学内容</button>';
   h += '<button class="sec" onclick="openClassNotes(\'' + esc(jsq(ckey(o.co))) + '\')">查看这个班的全部记录</button>';
   openSheet(h);
 }
@@ -967,11 +974,12 @@ function renderSet() {
     '<div style="font-size:12px;color:var(--ink3);margin-top:4px">小米/华为/OPPO/vivo 手机请在系统设置里允许本 App 通知、自启动和后台运行，否则可能收不到。</div>' +
     (window.Android && Android.testNotify ? '<button class="sec" onclick="Android.testNotify()">发一条测试通知</button>' : "") + '</div>';
 
+  h += '<div class="sect">教学日志</div>' + planCard();
   h += '<div class="sect">外观</div>' + bgCard();
   h += '<div class="sect">数据</div><div class="card">' + (CAP.framed ? '<div id="cloudline" style="font-size:13px;font-weight:700;color:var(--teal);margin-bottom:6px">' + cloudLine() + '</div>' : '') + '<div style="color:var(--ink2);font-size:13px;margin:0 0 4px">' + (IS_NATIVE ? "卸载 App 会清空数据，换手机前请先备份。" : CAP.framed ? "也可以导出一份备份文件自己留着。" : "从主屏幕删除 App 或清除 Safari 网站数据会清空数据，换手机前请先备份。") + '共 ' + S.notes.length + ' 条记事。</div>' +
     '<button class="sec" onclick="exportData()">导出备份（发到微信/文件）</button><button class="sec" onclick="importData()">从备份恢复</button><button class="sec" onclick="exportText()">导出记事为文字</button></div>';
   h += '<div class="card"><button class="sec danger" style="margin-top:0" onclick="resetAll()">恢复初始数据（清空所有记事）</button></div>';
-  h += '<div class="about"><img src="img/school_red.png" alt="河南经贸职业学院 国际学院（格里菲斯学院）"><div>我的课堂 v1.7.1 · 数据只保存在本机</div></div>';
+  h += '<div class="about"><img src="img/school_red.png" alt="河南经贸职业学院 国际学院（格里菲斯学院）"><div>我的课堂 v1.8 · 数据只保存在本机</div></div>';
   $("view").innerHTML = h;
 }
 function delSemester(id) {
@@ -2081,6 +2089,194 @@ function bgCard() {
     h += '<button class="sec" style="margin-top:0" onclick="pickBg()">🖼 选择照片</button>';
   }
   return h + '</div>';
+}
+
+/* ================= 教学日志：从授课计划一键复制“教学内容” ================= */
+function normCourse(s) { return String(s || "").replace(/[（(][^）)]*[）)]/g, "").replace(/[\s《》]/g, ""); }
+function courseNames() { var sem = curSem(); return uniq(allCourses().map(function (c) { return c.name; })); }
+function guessCourse(planCourse) {
+  var n = normCourse(planCourse); if (!n) return "";
+  return courseNames().find(function (c) { var m = normCourse(c); return m === n || m.indexOf(n) >= 0 || n.indexOf(m) >= 0; }) || "";
+}
+function planOf(name) { return (S.plans || []).find(function (p) { return p.course === name; }); }
+/* 把解析结果瘦身：只留“教学内容”这一列 */
+function slimPlan(p, fname) {
+  var ci = p.labels.findIndex(function (l) { return /教学内容|授课内容/.test(l); });
+  if (ci < 0) ci = p.labels.findIndex(function (l) { return /内容|content|topic/i.test(l); });
+  if (ci < 0) ci = 0;
+  return { id: uid(), course: guessCourse(p.course), src: p.course, title: p.title, classes: p.classes, label: p.labels[ci] || "教学内容", fname: fname || "",
+    rows: p.rows.map(function (r) { return { w: r.w, d: r.d, h: r.h, c: (r.f[ci] || "").trim() }; }).filter(function (r) { return r.c || r.w; }) };
+}
+/* 授课计划日期“9.7-9.11 / 12.28-1.1”转成具体日期范围 */
+function planRange(d, sem) {
+  var m = String(d || "").match(/(\d{1,2})[.\/月](\d{1,2})日?\D+(?:(\d{1,2})[.\/月])?(\d{1,2})/); if (!m || !sem) return null;
+  var y0 = parseYmd(sem.start).getFullYear(), m1 = +m[1], m2 = m[3] ? +m[3] : m1;
+  var a = new Date(y0 + (m1 < parseYmd(sem.start).getMonth() + 1 - 2 ? 1 : 0), m1 - 1, +m[2]);
+  var b = new Date(a.getFullYear() + (m2 < m1 ? 1 : 0), m2 - 1, +m[4]);
+  return [ymd(a), ymd(b)];
+}
+/* 找到这节课对应授课计划的哪一行：按“周次 + 本周第几次课”匹配，可手动改 */
+function planMatch(o) {
+  var plan = planOf(o.co.name); if (!plan || !plan.rows.length) return null;
+  S.planPick = S.planPick || {};
+  var pick = S.planPick[o.oid + "|" + o.co.cls];
+  var sem = o.sem || curSem();
+  var pd = o.adj && o.adj.kind === "move" ? o.adj.odate : o.date;
+  var w = weekOf(parseYmd(pd), sem);
+  var same = sem ? sem.courses.filter(function (c) { return c.cls === o.co.cls && c.name === o.co.name; })
+    .sort(function (a, b) { return a.day - b.day || PORDER.indexOf(a.p) - PORDER.indexOf(b.p); }) : [];
+  var baseId = o.adj && o.adj.cid ? o.adj.cid : o.co.id;
+  var k = Math.max(0, same.findIndex(function (c) { return c.id === baseId; }));
+  var idxs = [];
+  plan.rows.forEach(function (r, i) { if (r.w === w) idxs.push(i); });
+  if (!idxs.length) plan.rows.forEach(function (r, i) { var rg = planRange(r.d, sem); if (rg && pd >= rg[0] && pd <= rg[1]) idxs.push(i); });
+  var auto = idxs.length ? idxs[Math.min(k, idxs.length - 1)] : -1;
+  var idx = pick !== undefined && plan.rows[pick] ? pick : auto;
+  return { plan: plan, idx: idx, auto: auto, manual: pick !== undefined, w: w, k: k + 1, n: same.length };
+}
+function copyText(t, what) {
+  var ok = false;
+  try { if (window.Android && Android.copy) { Android.copy(t); ok = true; } } catch (e) {}
+  if (!ok) {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(t).then(function () { toast("已复制" + (what ? "：" + what : "")); }, function () { legacyCopy(t, what); }); return; }
+    } catch (e) {}
+    legacyCopy(t, what); return;
+  }
+  toast("已复制" + (what ? "：" + what : "") + "，去学校系统里粘贴");
+}
+function legacyCopy(t, what) {
+  var ta = document.createElement("textarea"); ta.value = t; ta.setAttribute("readonly", ""); ta.style.position = "fixed"; ta.style.top = "-1000px";
+  document.body.appendChild(ta); ta.select(); try { ta.setSelectionRange(0, t.length); } catch (e) {}
+  var ok = false; try { ok = document.execCommand("copy"); } catch (e) {}
+  ta.remove();
+  if (ok) toast("已复制" + (what ? "：" + what : "")); else showCopy(t, "长按全选后复制");
+}
+
+var jDate = null;
+function openJournal(ds) {
+  jDate = ds || jDate || ymd(new Date());
+  var d = parseYmd(jDate), occ = occurrencesOn(d);
+  S.jdone = S.jdone || {};
+  var h = '<div class="shead"><div><h2>教学日志 · 教学内容</h2><div class="sh">按课表和授课计划自动对应，点“复制”后去学校系统粘贴</div></div><button class="xbtn" onclick="closeSheet()">✕</button></div>';
+  h += '<div class="wknav" style="margin:2px 0 10px"><button aria-label="前一天" onclick="openJournal(ymd(addDays(parseYmd(jDate),-1)))">‹</button><div><b>' + md(d) + " " + WD[dow(d)] + '</b><span>' + (dayInfo(d).sem ? "第 " + weekOf(d) + " 周" : "") + (ymd(d) === ymd(new Date()) ? " · 今天" : "") + '</span></div><button aria-label="后一天" onclick="openJournal(ymd(addDays(parseYmd(jDate),1)))">›</button></div>';
+  if (!occ.length) h += '<div class="card empty">' + (dayInfo(d).holiday ? esc(dayInfo(d).label) + "，没有课" : "这天没有课") + '</div>';
+  occ.forEach(function (o) {
+    var mt = planMatch(o), key = o.oid + "|" + o.co.cls, done = !!S.jdone[key];
+    h += '<div class="jcard' + (done ? " done" : "") + '"><div class="jh"><div><b>' + pLabel(o.co.p) + " · " + esc(short(o.co.cls)) + '</b><span>' + esc(o.co.name) + " · " + esc(o.co.room) + '</span></div>' +
+      '<button class="jdone' + (done ? " on" : "") + '" onclick="toggleJDone(\'' + esc(jsq(key)) + '\')">' + (done ? "✓ 已提交" : "标记已提交") + '</button></div>';
+    if (!mt) {
+      h += '<div class="hint">这门课还没有授课计划。<button class="mini" onclick="uploadPlan()">上传授课计划</button></div>';
+    } else if (mt.idx < 0) {
+      h += '<div class="hint">授课计划里没有第 ' + mt.w + ' 周的内容。<button class="mini" onclick="pickPlanRow(\'' + o.oid + '\',\'' + esc(jsq(o.co.cls)) + '\')">手动选一条</button></div>';
+    } else {
+      var r = mt.plan.rows[mt.idx];
+      h += '<div class="jmeta">' + (mt.manual ? "手动选择 · " : "自动对应 · ") + "计划第 " + r.w + " 周" + (r.d ? "（" + esc(r.d) + "）" : "") + (mt.manual ? "" : " · 本周第 " + mt.k + " 次课") +
+        ' <button class="link" onclick="pickPlanRow(\'' + o.oid + '\',\'' + esc(jsq(o.co.cls)) + '\')">不对？换一条</button></div>';
+      h += '<div class="jtext" id="jt_' + esc(o.oid.replace(/[^\w-]/g, "_")) + '">' + esc(r.c) + '</div>';
+      if (/holiday|放假|假期/i.test(r.c) || r.h === "-") h += '<div class="hint" style="margin-top:6px">这一行是假期或考试安排，如果今天正常上课，点“换一条”选实际讲的内容。</div>';
+      h += '<button class="prim" style="margin-top:10px" onclick="copyPlan(\'' + o.oid + '\',\'' + esc(jsq(o.co.cls)) + '\')">📋 复制' + esc(mt.plan.label) + '</button>';
+    }
+    h += '</div>';
+  });
+  if (occ.length) {
+    var allDone = occ.every(function (o) { return S.jdone[o.oid + "|" + o.co.cls]; });
+    h += S.journal[jDate] ? '<div class="hint" style="background:var(--okbg);color:var(--ok);margin-top:12px">✓ 这天的教学日志已确认填写</div>'
+      : '<button class="sec" onclick="journalDone(\'' + jDate + '\');openJournal(jDate)">' + (allDone ? "✓ 这天的日志都填好了" : "这天的日志已全部填写") + '</button>';
+  }
+  openSheet(h);
+}
+function copyPlan(oid, cls) {
+  var o = findOcc(oid); if (!o) return;
+  var mt = planMatch(o); if (!mt || mt.idx < 0) return;
+  copyText(mt.plan.rows[mt.idx].c, mt.plan.label);
+}
+function toggleJDone(key) {
+  S.jdone[key] = S.jdone[key] ? 0 : 1; if (!S.jdone[key]) delete S.jdone[key];
+  var occ = occurrencesOn(parseYmd(jDate));
+  if (occ.length && occ.every(function (o) { return S.jdone[o.oid + "|" + o.co.cls]; }) && !S.journal[jDate]) { S.journal[jDate] = 1; toast("这天的教学日志都填好了 ✓"); }
+  save(); render(); openJournal(jDate);
+}
+function pickPlanRow(oid, cls) {
+  var o = findOcc(oid); if (!o) return; var mt = planMatch(o); if (!mt) return;
+  var h = '<div class="shead"><div><h2>选择授课计划内容</h2><div class="sh">' + esc(short(cls)) + " · " + md(parseYmd(o.date)) + " " + pLabel(o.co.p) + '</div></div><button class="xbtn" onclick="openJournal()">✕</button></div>';
+  if (mt.manual) h += '<button class="sec" style="margin:0 0 10px" onclick="setPlanPick(\'' + oid + '\',\'' + esc(jsq(cls)) + '\',null)">↩ 恢复自动对应</button>';
+  h += mt.plan.rows.map(function (r, i) {
+    return '<div class="prow' + (i === mt.idx ? " on" : "") + (i === mt.auto ? " auto" : "") + '" onclick="setPlanPick(\'' + oid + '\',\'' + esc(jsq(cls)) + '\',' + i + ')"><div class="pw">第' + r.w + '周<small>' + esc(r.d) + '</small></div><div class="pc">' + esc(r.c.split("\n")[0]) + (r.c.indexOf("\n") >= 0 ? '<small>' + esc(r.c.split("\n").slice(1).join(" ")) + '</small>' : "") + '</div></div>';
+  }).join("");
+  openSheet(h);
+  setTimeout(function () { var e = document.querySelector(".prow.on"); if (e) $("sheet").scrollTop = e.offsetTop - 120; }, 30);
+}
+function setPlanPick(oid, cls, i) {
+  S.planPick = S.planPick || {};
+  if (i === null) delete S.planPick[oid + "|" + cls]; else S.planPick[oid + "|" + cls] = i;
+  save(); openJournal();
+}
+
+/* ---- 上传授课计划 ---- */
+var PIMP = null;
+function uploadPlan() {
+  var inp = document.createElement("input"); inp.type = "file"; inp.multiple = true;
+  inp.accept = ".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  inp.onchange = async function () {
+    var files = Array.prototype.slice.call(inp.files || []); if (!files.length) return;
+    try {
+      if (!window.XLSX) await loadScript("lib/xlsx.core.min.js");
+      PIMP = [];
+      for (var i = 0; i < files.length; i++) {
+        if (/\.doc$/i.test(files[i].name)) { notice("“" + files[i].name + "”是旧版 .doc 格式，请在 Word 里“另存为 .docx”后再上传。"); continue; }
+        var p = PlanParser.parsePlanDocx(await files[i].arrayBuffer(), XLSX);
+        if (!p.rows.length) { notice("“" + files[i].name + "”里没有找到带“周次”和“教学内容”的表格。"); continue; }
+        PIMP.push(slimPlan(p, files[i].name));
+      }
+      if (PIMP.length) reviewPlans();
+    } catch (e) { notice("读取授课计划失败：" + (e && e.message ? e.message : e)); }
+  };
+  inp.click();
+}
+function reviewPlans() {
+  var names = courseNames();
+  var h = '<div class="shead"><div><h2>识别到 ' + PIMP.length + ' 份授课计划</h2><div class="sh">确认每份对应哪门课</div></div><button class="xbtn" onclick="closeSheet()">✕</button></div>';
+  PIMP.forEach(function (p, i) {
+    h += '<div class="card imp"><div style="font-size:12px;color:var(--ink3)">' + esc(p.fname) + '</div><b>' + esc(p.src || p.title || "未识别课程名") + '</b>' +
+      '<div style="font-size:13px;color:var(--ink2);margin:2px 0">' + p.rows.length + ' 次课 · 第 ' + p.rows[0].w + '–' + p.rows[p.rows.length - 1].w + ' 周' + (p.classes ? " · " + esc(p.classes) : "") + '</div>' +
+      '<label class="fl" style="margin-top:6px">对应课表里的课程</label><select onchange="PIMP[' + i + '].course=this.value">' +
+      names.map(function (n) { return '<option' + (n === p.course ? " selected" : "") + '>' + esc(n) + '</option>'; }).join("") + '<option value=""' + (p.course ? "" : " selected") + '>（暂不对应）</option></select>' +
+      '<div class="jtext" style="margin-top:8px;max-height:96px">' + esc(p.rows[0].c) + '</div></div>';
+  });
+  h += '<button class="prim" onclick="savePlans()">保存</button>';
+  openSheet(h);
+}
+function savePlans() {
+  S.plans = S.plans || [];
+  PIMP.forEach(function (p) {
+    if (p.course) S.plans = S.plans.filter(function (x) { return x.course !== p.course; });
+    S.plans.push(p);
+  });
+  var n = PIMP.length; PIMP = null;
+  save(); closeSheet(); toast("已保存 " + n + " 份授课计划"); render();
+}
+function delPlan(id) { S.plans = S.plans.filter(function (p) { return p.id !== id; }); save(); toast("已删除"); render(); }
+function previewPlan(id) {
+  var p = S.plans.find(function (x) { return x.id === id; }); if (!p) return;
+  var h = '<div class="shead"><div><h2>' + esc(p.src || p.course) + '</h2><div class="sh">' + p.rows.length + ' 次课 · 对应课程：' + esc(p.course || "未对应") + '</div></div><button class="xbtn" onclick="closeSheet()">✕</button></div>';
+  h += p.rows.map(function (r) { return '<div class="prow" style="cursor:default"><div class="pw">第' + r.w + '周<small>' + esc(r.d) + '</small></div><div class="pc">' + esc(r.c.split("\n")[0]) + (r.c.indexOf("\n") >= 0 ? '<small>' + esc(r.c.split("\n").slice(1).join(" ")) + '</small>' : "") + '</div></div>'; }).join("");
+  openSheet(h);
+}
+function planCard() {
+  var names = courseNames(), plans = S.plans || [];
+  var h = '<div class="card"><b>授课计划（教学日志用）</b><div style="font-size:13px;color:var(--ink2);margin:2px 0 8px">上传学校的授课计划 Word 文件，每节课的“教学内容”会按课表和日期自动对应，写教学日志时一键复制。</div>';
+  names.forEach(function (n) {
+    var p = planOf(n);
+    h += '<div class="ptrow" style="align-items:center"><span style="flex:1;min-width:0">' + esc(n) + '</span>' +
+      (p ? '<small>' + p.rows.length + ' 次课</small><button class="mini" onclick="previewPlan(\'' + p.id + '\')">查看</button><button class="mini" style="background:var(--redbg);color:var(--red)" onclick="ask(\'删除这份授课计划？\',function(){delPlan(\'' + p.id + '\')},\'删除\')">删除</button>'
+        : '<small style="color:var(--amber)">未上传</small>') + '</div>';
+  });
+  plans.filter(function (p) { return !p.course || names.indexOf(p.course) < 0; }).forEach(function (p) {
+    h += '<div class="ptrow" style="align-items:center"><span style="flex:1;min-width:0;color:var(--ink3)">' + esc(p.src || p.title) + '（未对应课程）</span><button class="mini" onclick="ask(\'删除这份授课计划？\',function(){delPlan(\'' + p.id + '\')},\'删除\')">删除</button></div>';
+  });
+  h += '<button class="sec" onclick="uploadPlan()">📄 上传授课计划（Word .docx）</button></div>';
+  return h;
 }
 
 /* ================= 启动 ================= */

@@ -1,6 +1,6 @@
 /* 离线缓存：核心文件安装时缓存，识别引擎首次使用时缓存 */
-var V = "ketang-v1.7.1";
-var CORE = ["./", "./index.html", "./app.js", "./roster_data.js", "./img/school_red.png", "./manifest.json", "./icons/icon-180.png", "./icons/icon-192.png"];
+var V = "ketang-v1.8";
+var CORE = ["./", "./index.html", "./app.js", "./roster_data.js", "./plan.js", "./img/school_red.png", "./manifest.json", "./icons/icon-180.png", "./icons/icon-192.png"];
 self.addEventListener("install", function (e) {
   e.waitUntil(caches.open(V).then(function (c) { return c.addAll(CORE); }).then(function () { return self.skipWaiting(); }));
 });

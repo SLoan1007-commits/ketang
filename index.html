@@ -382,6 +382,25 @@ body.hasbg .tgrid .td{background:rgba(248,245,245,.75)}
 .slider span{width:36px;font-size:13px;font-weight:800;color:var(--ink2)}
 .slider input{flex:1;padding:0;border:0;accent-color:var(--teal);background:transparent}
 .slider em{width:44px;text-align:right;font-style:normal;font-size:12px;color:var(--ink3);font-variant-numeric:tabular-nums}
+
+/* v1.8 教学日志 */
+.jcard{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px 14px;margin-bottom:10px}
+.jcard.done{border-color:var(--ok);background:var(--okbg)}
+.jh{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.jh b{display:block;font-size:15px}
+.jh span{font-size:12px;color:var(--ink3)}
+.jdone{border:1px solid var(--line);border-radius:999px;padding:5px 10px;font-size:12px;font-weight:700;color:var(--ink2);background:#fff;white-space:nowrap}
+.jdone.on{background:var(--ok);border-color:var(--ok);color:#fff}
+.jmeta{font-size:12px;color:var(--ink3);margin:8px 0 6px}
+.link{color:var(--teal);font-weight:700;font-size:12px;text-decoration:underline}
+.jtext{background:var(--bg);border:1px dashed var(--line);border-radius:10px;padding:10px 12px;font-size:14px;line-height:1.6;white-space:pre-wrap;word-break:break-word;max-height:220px;overflow:auto;user-select:text;-webkit-user-select:text}
+.prow{display:flex;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;margin-bottom:6px;background:var(--card);cursor:pointer}
+.prow.on{border-color:var(--teal);box-shadow:0 0 0 1px var(--teal)}
+.prow.auto .pw::after{content:"自动";display:block;font-size:10px;color:var(--teal);font-weight:800}
+.prow .pw{width:56px;flex:none;font-weight:800;font-size:13px;color:var(--teal)}
+.prow .pw small{display:block;font-weight:400;font-size:10.5px;color:var(--ink3)}
+.prow .pc{flex:1;min-width:0;font-size:13px;font-weight:700}
+.prow .pc small{display:block;font-weight:400;color:var(--ink2);font-size:12px;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 </style>
 </head>
 <body>
@@ -401,6 +420,7 @@ body.hasbg .tgrid .td{background:rgba(248,245,245,.75)}
 <div id="toast" class="toast"></div>
 
 <script src="roster_data.js"></script>
+<script src="plan.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
