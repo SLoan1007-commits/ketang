@@ -979,7 +979,7 @@ function renderSet() {
   h += '<div class="sect">数据</div><div class="card">' + (CAP.framed ? '<div id="cloudline" style="font-size:13px;font-weight:700;color:var(--teal);margin-bottom:6px">' + cloudLine() + '</div>' : '') + '<div style="color:var(--ink2);font-size:13px;margin:0 0 4px">' + (IS_NATIVE ? "卸载 App 会清空数据，换手机前请先备份。" : CAP.framed ? "也可以导出一份备份文件自己留着。" : "从主屏幕删除 App 或清除 Safari 网站数据会清空数据，换手机前请先备份。") + '共 ' + S.notes.length + ' 条记事。</div>' +
     '<button class="sec" onclick="exportData()">导出备份（发到微信/文件）</button><button class="sec" onclick="importData()">从备份恢复</button><button class="sec" onclick="exportText()">导出记事为文字</button></div>';
   h += '<div class="card"><button class="sec danger" style="margin-top:0" onclick="resetAll()">恢复初始数据（清空所有记事）</button></div>';
-  h += '<div class="about"><img src="img/school_red.png" alt="河南经贸职业学院 国际学院（格里菲斯学院）"><div>我的课堂 v1.8 · 数据只保存在本机</div></div>';
+  h += '<div class="about"><img src="img/school_red.png" alt="河南经贸职业学院 国际学院（格里菲斯学院）"><div>我的课堂 v1.8.1 · 数据只保存在本机</div></div>';
   $("view").innerHTML = h;
 }
 function delSemester(id) {
@@ -1954,22 +1954,26 @@ function pickRosterFiles() {
   inp.accept = ".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel";
   inp.onchange = async function () {
     var files = Array.prototype.slice.call(inp.files || []); if (!files.length) return;
-    try {
-      if (!window.XLSX) await loadScript("lib/xlsx.core.min.js");
-      var found = [];
-      for (var i = 0; i < files.length; i++) {
-        var buf = await files[i].arrayBuffer();
-        var wb = XLSX.read(buf, { type: "array" });
-        wb.SheetNames.forEach(function (sn) {
-          var r = parseRosterSheet(XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, raw: false, defval: "" }), files[i].name);
-          if (r && r.list.length) found.push(r);
-        });
-      }
-      if (!found.length) { notice("没有在表格里找到“学号”“姓名”两列。请确认是学生名单或成绩册。"); return; }
-      RIMP = found; reviewRoster();
-    } catch (e) { notice("读取表格失败：" + (e && e.message ? e.message : e)); }
+    var list = [];
+    for (var i = 0; i < files.length; i++) list.push({ name: files[i].name, buf: await files[i].arrayBuffer() });
+    importRosterBufs(list);
   };
   inp.click();
+}
+async function importRosterBufs(list) {
+  try {
+    if (!window.XLSX) await loadScript("lib/xlsx.core.min.js");
+    var found = [];
+    list.forEach(function (f) {
+      var wb = XLSX.read(f.buf, { type: "array" });
+      wb.SheetNames.forEach(function (sn) {
+        var r = parseRosterSheet(XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, raw: false, defval: "" }), f.name);
+        if (r && r.list.length) found.push(r);
+      });
+    });
+    if (!found.length) { notice("没有在表格里找到“学号”“姓名”两列。请确认是学生名单或成绩册。"); return; }
+    RIMP = found; reviewRoster();
+  } catch (e) { notice("读取表格失败：" + (e && e.message ? e.message : e)); }
 }
 function parseRosterSheet(rows, fname) {
   var cls = "", hr = -1, ci = -1, ni = -1;
@@ -2159,6 +2163,7 @@ function openJournal(ds) {
   var d = parseYmd(jDate), occ = occurrencesOn(d);
   S.jdone = S.jdone || {};
   var h = '<div class="shead"><div><h2>教学日志 · 教学内容</h2><div class="sh">按课表和授课计划自动对应，点“复制”后去学校系统粘贴</div></div><button class="xbtn" onclick="closeSheet()">✕</button></div>';
+  h += '<button class="sec" style="margin:0 0 10px;display:flex;align-items:center;justify-content:center;gap:6px" onclick="uploadPlan()">📄 上传 / 更新授课计划（Word）</button>';
   h += '<div class="wknav" style="margin:2px 0 10px"><button aria-label="前一天" onclick="openJournal(ymd(addDays(parseYmd(jDate),-1)))">‹</button><div><b>' + md(d) + " " + WD[dow(d)] + '</b><span>' + (dayInfo(d).sem ? "第 " + weekOf(d) + " 周" : "") + (ymd(d) === ymd(new Date()) ? " · 今天" : "") + '</span></div><button aria-label="后一天" onclick="openJournal(ymd(addDays(parseYmd(jDate),1)))">›</button></div>';
   if (!occ.length) h += '<div class="card empty">' + (dayInfo(d).holiday ? esc(dayInfo(d).label) + "，没有课" : "这天没有课") + '</div>';
   occ.forEach(function (o) {
@@ -2217,23 +2222,45 @@ function setPlanPick(oid, cls, i) {
 var PIMP = null;
 function uploadPlan() {
   var inp = document.createElement("input"); inp.type = "file"; inp.multiple = true;
-  inp.accept = ".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  inp.accept = ".docx,.doc,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword";
   inp.onchange = async function () {
     var files = Array.prototype.slice.call(inp.files || []); if (!files.length) return;
-    try {
-      if (!window.XLSX) await loadScript("lib/xlsx.core.min.js");
-      PIMP = [];
-      for (var i = 0; i < files.length; i++) {
-        if (/\.doc$/i.test(files[i].name)) { notice("“" + files[i].name + "”是旧版 .doc 格式，请在 Word 里“另存为 .docx”后再上传。"); continue; }
-        var p = PlanParser.parsePlanDocx(await files[i].arrayBuffer(), XLSX);
-        if (!p.rows.length) { notice("“" + files[i].name + "”里没有找到带“周次”和“教学内容”的表格。"); continue; }
-        PIMP.push(slimPlan(p, files[i].name));
-      }
-      if (PIMP.length) reviewPlans();
-    } catch (e) { notice("读取授课计划失败：" + (e && e.message ? e.message : e)); }
+    var list = [];
+    for (var i = 0; i < files.length; i++) list.push({ name: files[i].name, buf: await files[i].arrayBuffer() });
+    importPlanBufs(list);
   };
   inp.click();
 }
+async function importPlanBufs(list) {
+  try {
+    if (!window.XLSX) await loadScript("lib/xlsx.core.min.js");
+    PIMP = [];
+    list.forEach(function (f) {
+      if (/\.doc$/i.test(f.name)) { notice("“" + f.name + "”是旧版 .doc 格式，请在 Word 或 WPS 里“另存为 .docx”后再上传。"); return; }
+      var p = PlanParser.parsePlanDocx(f.buf, XLSX);
+      if (!p.rows.length) { notice("“" + f.name + "”里没有找到带“周次”和“教学内容”的表格。"); return; }
+      PIMP.push(slimPlan(p, f.name));
+    });
+    if (PIMP.length) reviewPlans();
+  } catch (e) { notice("读取授课计划失败：" + (e && e.message ? e.message : e)); }
+}
+/* 从微信“用其他应用打开”发过来的 Word / Excel：自动识别是授课计划还是学生名单 */
+window.checkShared = function () {
+  var raw = null; try { raw = window.Android && Android.takeShared ? Android.takeShared() : null; } catch (e) {}
+  if (!raw) return;
+  var f; try { f = JSON.parse(raw); } catch (e) { return; }
+  var bin = atob(f.b64), u8 = new Uint8Array(bin.length);
+  for (var i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+  var name = f.name || "file", t = (f.type || "") + " " + name;
+  if (/\.doc$/i.test(name) || /msword/.test(t)) { notice("这是旧版 .doc 格式，请在 Word 或 WPS 里“另存为 .docx”后再发过来。"); return; }
+  if (/wordprocessingml|\.docx$/i.test(t)) { closeSheet(); importPlanBufs([{ name: name, buf: u8.buffer }]); return; }
+  if (/spreadsheetml|ms-excel|\.xlsx?$/i.test(t)) { closeSheet(); importRosterBufs([{ name: name, buf: u8.buffer }]); return; }
+  // 类型不明：先按 Word 试，再按 Excel 试
+  (async function () {
+    try { if (!window.XLSX) await loadScript("lib/xlsx.core.min.js"); var p = PlanParser.parsePlanDocx(u8.buffer, XLSX); if (p.rows.length) { importPlanBufs([{ name: name, buf: u8.buffer }]); return; } } catch (e) {}
+    importRosterBufs([{ name: name, buf: u8.buffer }]);
+  })();
+};
 function reviewPlans() {
   var names = courseNames();
   var h = '<div class="shead"><div><h2>识别到 ' + PIMP.length + ' 份授课计划</h2><div class="sh">确认每份对应哪门课</div></div><button class="xbtn" onclick="closeSheet()">✕</button></div>';
@@ -2275,7 +2302,9 @@ function planCard() {
   plans.filter(function (p) { return !p.course || names.indexOf(p.course) < 0; }).forEach(function (p) {
     h += '<div class="ptrow" style="align-items:center"><span style="flex:1;min-width:0;color:var(--ink3)">' + esc(p.src || p.title) + '（未对应课程）</span><button class="mini" onclick="ask(\'删除这份授课计划？\',function(){delPlan(\'' + p.id + '\')},\'删除\')">删除</button></div>';
   });
-  h += '<button class="sec" onclick="uploadPlan()">📄 上传授课计划（Word .docx）</button></div>';
+  h += '<button class="sec" onclick="uploadPlan()">📄 上传授课计划（Word .docx）</button>';
+  if (window.Android) h += '<div style="font-size:12px;color:var(--ink3);margin-top:8px">文件在微信里？在微信打开这个 Word 文件 → 右上角“…” → “用其他应用打开” → 选“我的课堂”，就会自动导入。学生名单 Excel 也一样。</div>';
+  h += '</div>';
   return h;
 }
 
@@ -2283,6 +2312,7 @@ function planCard() {
 applyBg();
 save();
 render();
+setTimeout(function () { if (window.checkShared) window.checkShared(); }, 300);
 cloudInit();
 (function welcome() {
   var cs = curSem();
