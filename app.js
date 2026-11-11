@@ -78,6 +78,7 @@ function ensureFields() {
   if (!S.adjust) S.adjust = [];
   if (!S.journal) S.journal = {};
   if (S.journalOn === undefined) S.journalOn = true;
+  if (S.nick === undefined && window.PRESET && PRESET.nick) S.nick = PRESET.nick;
   if (!S.journalSince) S.journalSince = ymd(new Date());
   if (!S.rosters) S.rosters = {};
   if (!S.plans) S.plans = [];
@@ -280,7 +281,8 @@ function renderTop() {
   $("top").innerHTML = (tab === "home" ? '<div class="brand"><img src="img/school_red.png" alt="河南经贸职业学院 国际学院（格里菲斯学院）"></div>' : "") +
     '<div class="toprow"><div><div class="sub">' + (now.getMonth() + 1) + "月" + now.getDate() + "日 " + WD[dow(now)] +
     (info.holiday || info.makeup ? ' · <b style="color:var(--amber)">' + esc(info.label) + '</b>' : "") +
-    '</div><h1>' + titles[tab] + '</h1></div><span class="weekpill">' + pill + '</span></div>';
+    '</div>' + (tab === "home" ? '<h1 class="hello" onclick="editNick()">Hi，' + esc(greetName()) + '~' + (S.nick ? "" : '<small>点这里设置称呼</small>') + '</h1>' : '<h1>' + titles[tab] + '</h1>') + '</div><span class="weekpill">' + pill + '</span></div>' +
+    (tab === "home" && S.quotesOn !== false ? (curQuote || pickQuote(), '<button id="quote" class="quote" onclick="nextQuote()"><span>' + esc(curQuote) + '</span><i>换一句</i></button>') : "");
   document.querySelectorAll(".tabs button").forEach(function (b) { b.classList.toggle("on", b.dataset.t === tab); });
 }
 function render() {
@@ -623,7 +625,8 @@ function tick() {
 }
 setInterval(function () { if (tab === "home" && !$("mask").classList.contains("show")) tick(); }, 1000);
 document.addEventListener("visibilitychange", function () { if (!document.hidden && !$("mask").classList.contains("show")) render(); });
-window.onAppResume = function () { if (!$("mask").classList.contains("show")) render(); reschedule(); };
+window.onAppResume = function () { pickQuote(); if (!$("mask").classList.contains("show")) render(); reschedule(); };
+document.addEventListener("visibilitychange", function () { if (!document.hidden) pickQuote(); }, true);
 
 
 /* ---------- 页内确认框（不用系统 confirm/alert，网页版里它们会被拦截） ---------- */
@@ -975,11 +978,11 @@ function renderSet() {
     (window.Android && Android.testNotify ? '<button class="sec" onclick="Android.testNotify()">发一条测试通知</button>' : "") + '</div>';
 
   h += '<div class="sect">教学日志</div>' + planCard();
-  h += '<div class="sect">外观</div>' + bgCard();
+  h += '<div class="sect">外观</div>' + cheerCard() + bgCard();
   h += '<div class="sect">数据</div><div class="card">' + (CAP.framed ? '<div id="cloudline" style="font-size:13px;font-weight:700;color:var(--teal);margin-bottom:6px">' + cloudLine() + '</div>' : '') + '<div style="color:var(--ink2);font-size:13px;margin:0 0 4px">' + (IS_NATIVE ? "卸载 App 会清空数据，换手机前请先备份。" : CAP.framed ? "也可以导出一份备份文件自己留着。" : "从主屏幕删除 App 或清除 Safari 网站数据会清空数据，换手机前请先备份。") + '共 ' + S.notes.length + ' 条记事。</div>' +
     '<button class="sec" onclick="exportData()">导出备份（发到微信/文件）</button><button class="sec" onclick="importData()">从备份恢复</button><button class="sec" onclick="exportText()">导出记事为文字</button></div>';
   h += '<div class="card"><button class="sec danger" style="margin-top:0" onclick="resetAll()">恢复初始数据（清空所有记事）</button></div>';
-  h += '<div class="about"><img src="img/school_red.png" alt="河南经贸职业学院 国际学院（格里菲斯学院）"><div>我的课堂 v1.8.1 · 数据只保存在本机</div></div>';
+  h += '<div class="about"><img src="img/school_red.png" alt="河南经贸职业学院 国际学院（格里菲斯学院）"><div>我的课堂 v1.9 · 数据只保存在本机</div></div>';
   $("view").innerHTML = h;
 }
 function delSemester(id) {
@@ -2308,6 +2311,108 @@ function planCard() {
   return h;
 }
 
+/* ================= 首页问候 + 随机鸡汤 ================= */
+var QUOTES = {
+  any: [
+    "上完这节课，课时费又到账一点点 💰",
+    "学生不说话，说明他们在认真思考（大概）",
+    "他们表面冷漠，心里其实在给你点赞，只是不好意思出声",
+    "你讲的每个知识点，都在某个同学脑子里悄悄生根 🌱",
+    "今天也是靠专业吃饭的一天 ✨",
+    "讲台是你的主场，气场打开！",
+    "没人回答？那就自问自答，反正全场你最懂",
+    "再坚持 90 分钟，奶茶就在下课铃后等你 🧋",
+    "教书育人，顺便攒寒假 🏖️",
+    "今天听不懂没关系，期末前一晚他们会想起你说的每一句话",
+    "你不是在上课，你是在给未来的会计师们发功 🔮",
+    "一节课 = 一份课时费 + 一点功德",
+    "把冷场当作留白，高手都这么讲课",
+    "只要有一个学生听懂了，这节课就赚了",
+    "深呼吸——你比你以为的更会讲",
+    "教室再安静，也挡不住你的才华溢出来",
+    "学生的冷漠是暂时的，工资卡是长期的 😎",
+    "今日目标：讲完、下课、领钱、回家",
+    "他们低头不一定在玩手机，也可能在记笔记（祝你好运）",
+    "别忘了：你是老师，你说了算 👑",
+    "统计学告诉我们：总有一个学生在认真听",
+    "上课铃一响，Boss 登场",
+    "好老师不是不累，是累了还在发光",
+    "学生不配合？没关系，期末考试会替你说话的",
+    "这么多节课都拿下了，这一节也不在话下",
+    "课时费 +1，离寒假 -1 天 📉",
+    "你的耐心，是这个教室里最贵的东西",
+    "今天也请对自己说一句：我讲得真不错",
+    "冷漠是他们的保护色，热情是你的超能力",
+    "PPT 可以卡，你不会卡 💪",
+    "一届一届学生会毕业，你的本事只会越攒越多",
+    "讲不讲得动另说，先把自己哄开心最重要",
+    "这节课的 KPI：活着下课 ✅"
+  ],
+  morning: [
+    "早八人，辛苦了！咖啡续上，今天也元气满满 ☕",
+    "一日之计在于晨，一日之薪也在于晨 🌅",
+    "早上的你最清醒，趁学生还迷糊，赶紧把重点讲完"
+  ],
+  afternoon: [
+    "下午的课容易犯困：你负责清醒，他们负责努力 😴",
+    "午饭吃饱了吗？吃饱了才有力气对付后排",
+    "下午场开演，主角就是你 🎬"
+  ],
+  friday: [
+    "周五了！坚持住，周末在向你招手 👋",
+    "熬过今天的课，就是两天不用早起的快乐"
+  ],
+  done: [
+    "今天的课全部上完了，功德圆满，收工 🎉",
+    "下班啦！剩下的时间都属于你自己",
+    "今天又带着一群人往前走了一小步，真棒 👏",
+    "课上完了，教学日志填完就自由啦 📒"
+  ],
+  free: [
+    "今天没课，好好休息，你值得 🌿",
+    "没课的日子也要开心，充电是为了下一节课更从容 🔋"
+  ]
+};
+var curQuote = null;
+function quotePool() {
+  var mine = (S.myQuotes || []).filter(Boolean);
+  if (S.onlyMine && mine.length) return mine;
+  var now = new Date(), h = now.getHours(), today = occurrencesOn(now), pool = QUOTES.any.slice();
+  var extra = [];
+  var offDuty = !today.length || today[today.length - 1].end <= now;
+  // 没课或课已上完时，不出现“这节课 / 上课铃 / 坚持 90 分钟”这类句子
+  if (offDuty) pool = pool.filter(function (q) { return !/这节课|上课铃|90 分钟|今日目标|讲台是你的主场|PPT 可以卡|没人回答/.test(q); });
+  if (!today.length) extra = QUOTES.free;
+  else if (today[today.length - 1].end <= now) extra = QUOTES.done;
+  else if (h < 11) extra = QUOTES.morning;
+  else if (h >= 13 && h < 18) extra = QUOTES.afternoon;
+  if (dow(now) === 5 && today.length && today[today.length - 1].end > now) extra = extra.concat(QUOTES.friday);
+  // 应景的句子出现概率更高
+  extra.forEach(function (q) { pool.push(q, q, q, q); });
+  return pool.concat(mine, mine);
+}
+function pickQuote() {
+  var pool = quotePool(), q;
+  for (var i = 0; i < 8; i++) { q = pool[Math.floor(Math.random() * pool.length)]; if (q !== curQuote) break; }
+  curQuote = q;
+}
+function nextQuote() { pickQuote(); var e = $("quote"); if (e) { e.classList.remove("pop"); void e.offsetWidth; e.classList.add("pop"); e.querySelector("span").textContent = curQuote; } }
+function greetName() { return S.nick ? S.nick : "老师"; }
+function editNick() {
+  openSheet('<div class="shead"><div><h2>怎么称呼你？</h2><div class="sh">会显示在首页：Hi，xxx~</div></div><button class="xbtn" onclick="closeSheet()">✕</button></div>' +
+    '<input id="nick_in" maxlength="12" value="' + esc(S.nick || "") + '" placeholder="例如：王老师、小李">' +
+    '<button class="prim" onclick="S.nick=$(\'nick_in\').value.trim();save();closeSheet();render();toast(\'Hi，\'+greetName()+\'~\')">保存</button>');
+  setTimeout(function () { var i = $("nick_in"); if (i) i.focus(); }, 100);
+}
+function cheerCard() {
+  var h = '<div class="card"><b>首页问候</b><div style="font-size:13px;color:var(--ink2);margin:2px 0 8px">首页显示“Hi，称呼~”和一句随机打气的话，点一下那句话可以换一句。</div>';
+  h += '<label class="fl" style="margin-top:4px">称呼</label><input id="set_nick" maxlength="12" value="' + esc(S.nick || "") + '" placeholder="例如：王老师" onchange="S.nick=this.value.trim();save();toast(\'已保存\')">';
+  h += '<label class="check"><input type="checkbox"' + (S.quotesOn !== false ? " checked" : "") + ' onchange="S.quotesOn=this.checked;save()">显示打气的小句子</label>';
+  h += '<label class="fl">我自己的句子 <em>每行一句，会和自带的句子混在一起随机出现</em></label><textarea id="set_myq" placeholder="例如：上完这周就去吃火锅！" onchange="S.myQuotes=this.value.split(/\\n/).map(function(x){return x.trim()}).filter(Boolean);save();toast(\'已保存 \'+S.myQuotes.length+\' 句\')">' + esc((S.myQuotes || []).join("\n")) + '</textarea>';
+  h += '<label class="check"><input type="checkbox"' + (S.onlyMine ? " checked" : "") + ' onchange="S.onlyMine=this.checked;save()">只显示我自己的句子</label>';
+  return h + '</div>';
+}
+
 /* ================= 启动 ================= */
 applyBg();
 save();
@@ -2319,7 +2424,8 @@ cloudInit();
   if (S.welcomed || !cs || cs.courses.length) return;
   S.welcomed = true; save();
   openSheet('<div class="shead"><div><h2>欢迎使用“我的课堂”</h2><div class="sh">已内置河南经贸 2026-2027 学年第一学期校历和作息时间（含 4、5 号楼第 3-4 节单独时间）</div></div><button class="xbtn" onclick="closeSheet()">✕</button></div>' +
-    '<div class="hint">只差一步：导入你自己的课表。<br>打开微信“智慧经贸 → 教师课表查询”，把一周的课截图（一屏放不下就截几张），在这里选上即可自动识别，识别后可以核对修改。</div>' +
+    '<label class="fl" style="margin-top:4px">先告诉我怎么称呼你</label><input id="w_nick" maxlength="12" placeholder="例如：王老师、小李" onchange="S.nick=this.value.trim();save();renderTop()">' +
+    '<div class="hint" style="margin-top:12px">再导入你自己的课表。<br>打开微信“智慧经贸 → 教师课表查询”，把一周的课截图（一屏放不下就截几张），在这里选上即可自动识别，识别后可以核对修改。</div>' +
     '<button class="prim" onclick="importSchedule(\'' + cs.id + '\')">📷 导入课表截图</button>' +
     '<button class="sec" onclick="closeSheet();tab=\'table\';tableSemId=\'' + cs.id + '\';render();editCourse(null)">手动一节一节添加</button>' +
     '<div class="hint" style="margin-top:12px">导入课表后，可在“学生”页导入各班名单（学校成绩册 Excel 直接能用），上课时就能点名、随机抽人。</div>' +

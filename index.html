@@ -401,6 +401,16 @@ body.hasbg .tgrid .td{background:rgba(248,245,245,.75)}
 .prow .pw small{display:block;font-weight:400;font-size:10.5px;color:var(--ink3)}
 .prow .pc{flex:1;min-width:0;font-size:13px;font-weight:700}
 .prow .pc small{display:block;font-weight:400;color:var(--ink2);font-size:12px;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* v1.9 问候 + 打气句子 */
+.top h1.hello{font-size:24px;cursor:pointer;line-height:1.25}
+.top h1.hello small{display:block;font-size:12px;font-weight:400;color:var(--ink3);letter-spacing:0}
+.quote{display:flex;align-items:flex-start;gap:10px;width:100%;text-align:left;margin:10px 0 2px;padding:10px 14px;background:var(--card);border:1px solid var(--line);border-left:4px solid var(--teal);border-radius:12px;font-size:14.5px;line-height:1.55;color:var(--ink)}
+.quote span{flex:1;min-width:0}
+.quote i{font-style:normal;font-size:11px;color:var(--teal);font-weight:700;white-space:nowrap;padding-top:2px}
+.quote.pop span{animation:qpop .35s ease-out}
+@keyframes qpop{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.quote.pop span{animation:none}}
 </style>
 </head>
 <body>
