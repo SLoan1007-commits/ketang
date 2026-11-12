@@ -1,6 +1,6 @@
 /* 离线缓存：核心文件安装时缓存，识别引擎首次使用时缓存 */
-var V = "ketang-v1.9";
-var CORE = ["./", "./index.html", "./app.js", "./roster_data.js", "./plan.js", "./img/school_red.png", "./manifest.json", "./icons/icon-180.png", "./icons/icon-192.png"];
+var V = "ketang-v1.10";
+var CORE = ["./", "./index.html", "./app.js", "./roster_data.js", "./plan.js", "./export.js", "./img/school_red.png", "./manifest.json", "./icons/icon-180.png", "./icons/icon-192.png"];
 self.addEventListener("install", function (e) {
   e.waitUntil(caches.open(V).then(function (c) { return c.addAll(CORE); }).then(function () { return self.skipWaiting(); }));
 });
@@ -13,7 +13,7 @@ self.addEventListener("fetch", function (e) {
   if (e.request.method !== "GET") return;
   var url = new URL(e.request.url);
   if (url.origin !== location.origin) return;
-  var core = /\/(index\.html|app\.js|roster_data\.js)?$/.test(url.pathname);
+  var core = /\/(index\.html|app\.js|roster_data\.js|plan\.js|export\.js)?$/.test(url.pathname);
   if (core) {
     // 网络优先：有网就拿最新版，没网用缓存
     e.respondWith(fetch(e.request).then(function (r) {

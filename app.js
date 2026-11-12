@@ -922,7 +922,8 @@ function doDelCourse(id) {
 function renderNotes() {
   var sem = curSem();
   var keys = uniq((sem ? sem.courses.map(ckey) : []).concat(S.notes.map(function (n) { return n.key; })));
-  var h = '<input class="search" id="nq" placeholder="搜索记录（学生姓名、知识点…）" value="' + esc(noteQuery) + '" oninput="noteQuery=this.value;drawNoteList()">';
+  var h = '<button class="sec" style="margin:0 0 10px" onclick="openExport()">⬇ 导出全部记事和考勤（Excel）</button>';
+  h += '<input class="search" id="nq" placeholder="搜索记录（学生姓名、知识点…）" value="' + esc(noteQuery) + '" oninput="noteQuery=this.value;drawNoteList()">';
   h += '<div class="chips"><button class="fchip' + (noteFilter === "all" ? " on" : "") + '" onclick="noteFilter=\'all\';renderNotes()">全部</button>' +
     '<button class="fchip' + (noteFilter === "todo" ? " on" : "") + '" onclick="noteFilter=\'todo\';renderNotes()">⚑ 待办</button>' +
     keys.map(function (k) { var p = k.split("｜"); return '<button class="fchip' + (noteFilter === k ? " on" : "") + '" onclick="noteFilter=\'' + esc(jsq(k)) + '\';renderNotes()">' + esc(short(p[0])) + (keys.filter(function (x) { return x.split("｜")[0] === p[0]; }).length > 1 ? "·" + esc(p[1].slice(0, 4)) : "") + '</button>'; }).join("") + '</div>';
@@ -980,9 +981,9 @@ function renderSet() {
   h += '<div class="sect">教学日志</div>' + planCard();
   h += '<div class="sect">外观</div>' + cheerCard() + bgCard();
   h += '<div class="sect">数据</div><div class="card">' + (CAP.framed ? '<div id="cloudline" style="font-size:13px;font-weight:700;color:var(--teal);margin-bottom:6px">' + cloudLine() + '</div>' : '') + '<div style="color:var(--ink2);font-size:13px;margin:0 0 4px">' + (IS_NATIVE ? "卸载 App 会清空数据，换手机前请先备份。" : CAP.framed ? "也可以导出一份备份文件自己留着。" : "从主屏幕删除 App 或清除 Safari 网站数据会清空数据，换手机前请先备份。") + '共 ' + S.notes.length + ' 条记事。</div>' +
-    '<button class="sec" onclick="exportData()">导出备份（发到微信/文件）</button><button class="sec" onclick="importData()">从备份恢复</button><button class="sec" onclick="exportText()">导出记事为文字</button></div>';
+    '<button class="sec" onclick="exportData()">导出备份（发到微信/文件）</button><button class="sec" onclick="importData()">从备份恢复</button><button class="sec" onclick="openExport()">⬇ 导出考勤和记事（Excel）</button><button class="sec" onclick="exportText()">导出记事为文字</button></div>';
   h += '<div class="card"><button class="sec danger" style="margin-top:0" onclick="resetAll()">恢复初始数据（清空所有记事）</button></div>';
-  h += '<div class="about"><img src="img/school_red.png" alt="河南经贸职业学院 国际学院（格里菲斯学院）"><div>我的课堂 v1.9 · 数据只保存在本机</div></div>';
+  h += '<div class="about"><img src="img/school_red.png" alt="河南经贸职业学院 国际学院（格里菲斯学院）"><div>我的课堂 v1.10 · 数据只保存在本机</div></div>';
   $("view").innerHTML = h;
 }
 function delSemester(id) {
@@ -1854,7 +1855,7 @@ function renderStudents() {
   var cnt = {}; all.forEach(function (st) { if (!isActive(st)) cnt[st.st] = (cnt[st.st] || 0) + 1; });
   h += '<div class="card" style="margin-top:10px;padding:12px 14px"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><div><b>' + esc(stuCls) + '</b><div style="font-size:13px;color:var(--ink2)">在读 <b style="color:var(--teal)">' + act.length + '</b> 人 · 共 ' + all.length + ' 人' +
     Object.keys(cnt).map(function (k) { return " · " + k + " " + cnt[k]; }).join("") + '</div></div>' +
-    '<button class="mini" onclick="importRoster(\'' + esc(jsq(stuCls)) + '\')">导入/更新</button></div></div>';
+    '<div style="display:flex;gap:6px;flex-direction:column"><button class="mini" onclick="importRoster(\'' + esc(jsq(stuCls)) + '\')">导入/更新</button><button class="mini" onclick="openExport()">导出考勤</button></div></div></div>';
   if (!all.length) {
     h += '<div class="card empty">这个班还没有名单。点上方“导入/更新”，或<button class="mini" onclick="addStu()">手动添加</button></div>';
     $("view").innerHTML = h; return;
@@ -2111,7 +2112,7 @@ function slimPlan(p, fname) {
   var ci = p.labels.findIndex(function (l) { return /教学内容|授课内容/.test(l); });
   if (ci < 0) ci = p.labels.findIndex(function (l) { return /内容|content|topic/i.test(l); });
   if (ci < 0) ci = 0;
-  return { id: uid(), course: guessCourse(p.course), src: p.course, title: p.title, classes: p.classes, label: p.labels[ci] || "教学内容", fname: fname || "",
+  return { id: uid(), course: guessCourse(p.course), src: p.course, title: p.title, classes: p.classes, teacher: p.teacher || "", label: p.labels[ci] || "教学内容", fname: fname || "",
     rows: p.rows.map(function (r) { return { w: r.w, d: r.d, h: r.h, c: (r.f[ci] || "").trim() }; }).filter(function (r) { return r.c || r.w; }) };
 }
 /* 授课计划日期“9.7-9.11 / 12.28-1.1”转成具体日期范围 */
@@ -2411,6 +2412,110 @@ function cheerCard() {
   h += '<label class="fl">我自己的句子 <em>每行一句，会和自带的句子混在一起随机出现</em></label><textarea id="set_myq" placeholder="例如：上完这周就去吃火锅！" onchange="S.myQuotes=this.value.split(/\\n/).map(function(x){return x.trim()}).filter(Boolean);save();toast(\'已保存 \'+S.myQuotes.length+\' 句\')">' + esc((S.myQuotes || []).join("\n")) + '</textarea>';
   h += '<label class="check"><input type="checkbox"' + (S.onlyMine ? " checked" : "") + ' onchange="S.onlyMine=this.checked;save()">只显示我自己的句子</label>';
   return h + '</div>';
+}
+
+/* ================= 导出 Excel：考勤（学校成绩册格式）+ 全部记事 ================= */
+var ATT_MARK = { a: "×", v: "△", o: "○", l: "√", e: "√" };
+function noteSort(a, b) { return (a.date + PORDER.indexOf(a.p)).localeCompare(b.date + PORDER.indexOf(b.p)) || a.ts - b.ts; }
+function inSem(n, sem) { if (n.semId) return n.semId === sem.id; var r = semRange(sem), d = parseYmd(n.date); return d >= r[0] && d < r[1]; }
+function attSessions(sem, cls, course) {
+  return S.notes.filter(function (n) { return n.cls === cls && n.course === course && inSem(n, sem) && ((n.att && Object.keys(n.att).length) || n.attDone); }).sort(noteSort);
+}
+function exportKeys(sem) {
+  var keys = sem.courses.map(function (c) { return c.cls + "｜" + c.name; });
+  S.notes.forEach(function (n) { if (inSem(n, sem) && ((n.att && Object.keys(n.att).length) || n.attDone)) keys.push(n.cls + "｜" + n.course); });
+  return uniq(keys).sort();
+}
+function attCounts(n) {
+  var act = activeOf(n.cls), g = zeroAtt();
+  Object.keys(n.att || {}).forEach(function (id) { if (act.some(function (s) { return s.id === id; }) && g[n.att[id]] !== undefined) g[n.att[id]]++; });
+  return { due: act.length, here: act.length - g.a - g.v - g.o, g: g };
+}
+function defaultTeacher() {
+  if (S.teacherName) return S.teacherName;
+  if (window.PRESET && PRESET.teacher) return PRESET.teacher;
+  var p = (S.plans || []).find(function (x) { return x.teacher; }); return p ? p.teacher : "";
+}
+function openExport() {
+  if (!window.XLSX) loadScript("lib/xlsx.core.min.js").then(function () { var b = $("exp_go"); if (b) b.disabled = false; });
+  var sem = curSem(); if (!sem) { notice("还没有学期"); return; }
+  var keys = exportKeys(sem), withRoster = keys.filter(function (k) { return rosterOf(k.split("｜")[0]).length; });
+  var sessions = withRoster.reduce(function (t, k) { var p = k.split("｜"); return t + attSessions(sem, p[0], p[1]).length; }, 0);
+  var h = '<div class="shead"><div><h2>导出考勤和记事（Excel）</h2><div class="sh">' + esc(sem.name) + '</div></div><button class="xbtn" onclick="closeSheet()">✕</button></div>';
+  h += '<div class="card" style="padding:10px 14px;font-size:14px;line-height:1.7">' +
+    '<b>考勤</b>：按学校成绩册格式，每个班一张表，共 ' + withRoster.length + ' 个班、' + sessions + ' 次点名<br>' +
+    '<span style="color:var(--ink2);font-size:13px">√ 出勤 · △ 请假 · ○ 出勤（公务） · × 缺勤；迟到、早退记 √</span><br>' +
+    '<b>课堂记事</b>：全部 ' + S.notes.length + ' 条（进度、考勤、表现、补充、待办）<br>' +
+    '<b>学生统计</b>：每个学生的缺勤、请假、上台做题等次数<br>' +
+    '<b>考勤日期对照</b>：表里第几次对应哪天、哪一节</div>';
+  h += '<label class="fl">任课老师 <em>填在成绩册表头</em></label><input id="exp_teacher" value="' + esc(defaultTeacher()) + '" placeholder="姓名">';
+  if (withRoster.length < keys.length) h += '<div class="hint">没有学生名单的班级不生成考勤表：' + esc(keys.filter(function (k) { return withRoster.indexOf(k) < 0; }).map(function (k) { return short(k.split("｜")[0]); }).join("、")) + '</div>';
+  h += '<button class="prim" id="exp_go"' + (window.XLSX ? "" : " disabled") + ' onclick="doExport()">⬇ 导出 Excel</button>';
+  h += '<div style="font-size:12px;color:var(--ink3);margin-top:8px">' + (window.Android ? "导出后会保存到手机的“下载 / Download”文件夹，并弹出分享，可以直接发到微信“文件传输助手”。" : "导出后可以直接发到微信，或者“存储到文件”。") + '</div>';
+  openSheet(h);
+}
+function buildWorkbook(teacher) {
+  var sem = curSem(), sheets = [], map = [], keys = exportKeys(sem);
+  keys.forEach(function (k) {
+    var p = k.split("｜"), cls = p[0], course = p[1], roster = rosterOf(cls); if (!roster.length) return;
+    var ses = attSessions(sem, cls, course);
+    var students = roster.map(function (st) {
+      return { id: st.id, name: st.name, marks: ses.map(function (n) { if (!isActive(st)) return ""; var k2 = n.att && n.att[st.id]; return k2 ? ATT_MARK[k2] : "√"; }) };
+    });
+    var multi = keys.filter(function (x) { return x.split("｜")[0] === cls; }).length > 1;
+    sheets.push(XlsxExport.attendanceSheet("考勤-" + compactCls(cls) + (multi ? "-" + course.slice(0, 4) : ""), { term: sem.name, teacher: teacher, cls: cls, course: course, students: students, n: ses.length }));
+    ses.forEach(function (n, i) {
+      var c = attCounts(n), names = function (kk) { return Object.keys(n.att || {}).filter(function (id) { return n.att[id] === kk; }).map(function (id) { return stuName(cls, id); }).join("、"); };
+      var d = parseYmd(n.date);
+      map.push([cls, course, i + 1, n.date, WD[dow(d)], n.p ? n.p + "节" : "", c.due, c.here, names("a"), names("v"), names("o"), names("l"), names("e")]);
+    });
+  });
+  sheets.push(XlsxExport.tableSheet("考勤日期对照", ["班级", "课程", "第几次", "日期", "星期", "节次", "应到", "实到", "缺勤", "请假", "出勤(公务)", "迟到", "早退"], map,
+    [22, 18, 7, 11, 6, 7, 6, 6, 18, 18, 18, 18, 14], { center: [2, 3, 4, 5] }));
+  var notes = S.notes.slice().sort(noteSort).map(function (n) {
+    var d = parseYmd(n.date), c = rosterOf(n.cls).length && ((n.att && Object.keys(n.att).length) || n.attDone) ? attCounts(n) : null;
+    return [n.date, WD[dow(d)], n.week ? "第" + n.week + "周" : "", n.p ? n.p + "节" : "", n.cls, n.course || "", n.progress || "",
+      c ? "应到" + c.due + " 实到" + c.here + (attSummaryPlain(n) && attSummaryPlain(n) !== "全到" ? "；" + attSummaryPlain(n) : "；全到") : (attSummaryPlain(n) || ""),
+      marksPlain(n), n.students || "", n.other || "", n.todo ? (n.todoDone ? "已完成" : "待办") : ""];
+  });
+  sheets.push(XlsxExport.tableSheet("课堂记事", ["日期", "星期", "周次", "节次", "班级", "课程", "教学进度", "考勤", "课堂表现", "学生情况补充", "其他事项", "待办"], notes,
+    [11, 5, 7, 7, 20, 16, 30, 30, 30, 24, 22, 7], { center: [0, 1, 2, 3, 11] }));
+  var stu = [];
+  Object.keys(S.rosters || {}).sort().forEach(function (cls) {
+    var st = stuStats(cls);
+    sortedRoster(cls).sort(function (a, b) { return a._seq - b._seq; }).forEach(function (s) {
+      var x = st[s.id] || zeroAtt(), t = function (k) { return x.t[k] || { n: 0, ok: 0 }; };
+      stu.push([cls, s._seq, String(s.id), s.name, s.st || "在读", x.a, x.v, x.o, x.l, x.e, t("上台做题").n, t("上台做题").ok, t("回答问题").n, t("表扬").n, t("需关注").n, t("作业未交").n, s.memo || ""]);
+    });
+  });
+  sheets.push(XlsxExport.tableSheet("学生统计", ["班级", "序号", "学号", "姓名", "学籍状态", "缺勤", "请假", "出勤(公务)", "迟到", "早退", "上台做题", "做对", "回答问题", "表扬", "需关注", "作业未交", "备注"], stu,
+    [22, 5, 13, 8, 8, 5, 5, 8, 5, 5, 8, 5, 8, 5, 6, 8, 20], { center: [1, 2, 3, 4] }));
+  return XlsxExport.buildXlsx(sheets, XLSX);
+}
+function doExport() {
+  if (!window.XLSX) { toast("正在准备，请稍后再点"); return; }
+  var t = $("exp_teacher") ? $("exp_teacher").value.trim() : ""; if (t !== (S.teacherName || "")) { S.teacherName = t; save(); }
+  var bytes;
+  try { bytes = buildWorkbook(t); } catch (e) { notice("生成 Excel 失败：" + (e && e.message ? e.message : e)); return; }
+  saveBytes(bytes, "我的课堂-考勤与记事-" + ymd(new Date()) + ".xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+}
+function saveBytes(bytes, name, mime) {
+  if (window.Android && Android.saveFile) {
+    var bin = ""; for (var i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    try { Android.saveFile(name, btoa(bin), mime); return; } catch (e) {}
+  }
+  var file = null; try { file = new File([bytes], name, { type: mime }); } catch (e) {}
+  if (file && navigator.canShare && navigator.canShare({ files: [file] }) && !CAP.framed) {
+    navigator.share({ files: [file], title: name }).then(function () { toast("已导出"); }, function (e) { if (!e || e.name !== "AbortError") blobDownload(bytes, name, mime); });
+    return;
+  }
+  blobDownload(bytes, name, mime);
+}
+function blobDownload(bytes, name, mime) {
+  var url = URL.createObjectURL(new Blob([bytes], { type: mime })), a = document.createElement("a");
+  a.href = url; a.download = name; document.body.appendChild(a); a.click();
+  setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 5000);
+  toast("已导出：" + name);
 }
 
 /* ================= 启动 ================= */
