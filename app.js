@@ -793,7 +793,7 @@ function adjListHtml() {
 }
 /* 课表页：周视图表格（本周实际安排 / 固定课表） */
 var tableMode = "week", tableWeekOff = 0;
-var CLR = [["#c0141f", "#fde9ea"], ["#b7791f", "#fbf1dc"], ["#1f7a6e", "#e0f2ef"], ["#2f5fa8", "#e5ecf8"], ["#7a4f9a", "#f1e9f7"], ["#c2571a", "#fdece0"], ["#4a7a2f", "#eaf3e1"], ["#4f5d6b", "#e9edf1"]];
+var CLR = [["#b5474c", "#f9eded"], ["#a97c3a", "#f8f1e3"], ["#3f8378", "#e6f1ef"], ["#4a6fa5", "#e9eef6"], ["#7d6299", "#f1ecf6"], ["#b86a3e", "#f9eee6"], ["#5f8247", "#edf3e8"], ["#5e6b78", "#eceff2"]];
 function clsColor(cls) {
   var all = uniq(allCourses().map(function (c) { return c.cls; }).concat(Object.keys(S.rosters || {}))).sort();
   var i = all.indexOf(cls); return CLR[(i < 0 ? 0 : i) % CLR.length];
@@ -801,7 +801,7 @@ function clsColor(cls) {
 function compactCls(cls) { return short(cls).replace(/^\d{2}/, ""); }
 function cellBlock(co, opt) {
   var c = clsColor(co.cls), tm = timesFor(co);
-  return '<div class="tc' + (opt.cls || "") + '" style="--c:' + c[0] + ';--cb:' + c[1] + '" onclick="' + opt.click + '">' +
+  return '<div class="tc' + (opt.cls || "") + '"' + (opt.oid ? ' data-oid="' + esc(opt.oid) + '"' : "") + ' style="--c:' + c[0] + ';--cb:' + c[1] + '" onclick="' + opt.click + '">' +
     (opt.badge ? '<i class="tb">' + opt.badge + '</i>' : "") +
     '<b>' + esc(co.room || "—") + '</b><span class="tn">' + esc(compactCls(co.cls)) + '</span><span class="tk">' + esc(co.name) + '</span>' +
     (tm && tm.alt ? '<span class="tt">' + tm.t[0] + '</span>' : "") + '</div>';
@@ -837,7 +837,7 @@ function renderTable() {
       else if (di.makeup) hol[i + 1] = "补" + WD[di.makeup.asDay].slice(1);
       occurrencesOn(dd).forEach(function (o) {
         var st = o.end <= now ? " past" : (o.start <= now ? " now" : "");
-        put(i + 1, o.co.p, cellBlock(o.co, { cls: st, click: "occSheet('" + o.oid + "')", badge: o.adj ? (o.adj.kind === "add" ? "加" : "调") : (noteForOcc(o) ? "✓" : "") }));
+        put(i + 1, o.co.p, cellBlock(o.co, { cls: st, oid: st === " past" ? null : o.oid, click: "occSheet('" + o.oid + "')", badge: o.adj ? (o.adj.kind === "add" ? "加" : "调") : (noteForOcc(o) ? "✓" : "") }));
       });
       ghostsOn(dd).forEach(function (g) {
         put(i + 1, g.co.p, cellBlock(g.co, { cls: " ghost", click: "adjSheetFor('" + ds + "','" + g.co.id + "')", badge: g.a.kind === "cancel" ? "停" : "走" }));
@@ -870,19 +870,24 @@ function renderTable() {
       var k = d + "_" + p, dt = addDays(mon, d - 1);
       var isHol = tableMode === "week" && hol[d] && !/^补/.test(hol[d]);
       var empty = tableMode === "week" ? "addSheet('" + ymd(dt) + "','" + p + "')" : "editCourse(null," + d + ",'" + p + "')";
-      h += '<div class="td' + (isHol ? " hol" : "") + (tableMode === "week" && ymd(dt) === today ? " today" : "") + '"' + (cells[k] ? "" : ' onclick="' + empty + '"') + '>' + (cells[k] ? cells[k].join("") : (isHol ? "" : '<span class="plus">＋</span>')) + '</div>';
+      h += '<div class="td' + (isHol ? " hol" : "") + (tableMode === "week" && ymd(dt) === today ? " today" : "") + '"' +
+        (tableMode === "week" ? ' data-ds="' + ymd(dt) + '" data-p="' + p + '" data-empty="' + (cells[k] || isHol ? "0" : "1") + '"' : "") +
+        (cells[k] ? "" : ' onclick="' + empty + '"') + '>' + (cells[k] ? cells[k].join("") : (isHol ? "" : '<span class="plus">＋</span>')) + '</div>';
     });
   });
   h += '</div></div>';
 
   // 图例：每个班一种颜色
-  var legend = uniq(sem.courses.map(function (c) { return c.cls + "｜" + c.name; }));
+  // 图例只算当前看的这一周实际在上的课（每周固定改动后不重复计数）
+  var wkNow = tableMode === "week" ? wk : (semFor(now) === sem ? weekOf(now, sem) : 0);
+  var liveC = sem.courses.filter(function (c) { return !wkNow || (wkNow >= c.w1 && wkNow <= c.w2); });
+  var legend = uniq(liveC.map(function (c) { return c.cls + "｜" + c.name; }));
   if (legend.length) h += '<div class="legend">' + legend.map(function (k) {
-    var pr = k.split("｜"), c = clsColor(pr[0]), n = sem.courses.filter(function (x) { return x.cls === pr[0] && x.name === pr[1]; }).length;
+    var pr = k.split("｜"), c = clsColor(pr[0]), n = liveC.filter(function (x) { return x.cls === pr[0] && x.name === pr[1] && !x.par; }).length + liveC.filter(function (x) { return x.cls === pr[0] && x.name === pr[1] && x.par; }).length / 2;
     return '<span style="--c:' + c[0] + ';--cb:' + c[1] + '"><i></i>' + esc(compactCls(pr[0])) + '<em>' + esc(pr[1]) + ' · ' + n + '节/周</em></span>';
   }).join("") + '</div>';
   if (!sem.courses.length) h += '<div class="card empty" style="margin-top:10px">这个学期还没有课程。<button class="mini" onclick="importSchedule(\'' + sem.id + '\')">📷 导入课表截图</button></div>';
-  if (tableMode === "week") h += '<div class="tnote">格子里：✓ 已记录 · 调/加 调课或加课 · 停/走 停课或已调走。点格子可记录、调课；点空格可临时加课。</div>';
+  if (tableMode === "week") h += '<div class="tnote"><b>长按课程拖到空白格子，就能调课。</b>格子里：✓ 已记录 · 调/加 调课或加课 · 停/走 停课或已调走。点格子可记录、调课；点空格可临时加课。</div>';
   h += adjListHtml();
   $("view").innerHTML = h;
 }
@@ -984,7 +989,7 @@ function renderSet() {
   h += '<div class="sect">数据</div><div class="card">' + (CAP.framed ? '<div id="cloudline" style="font-size:13px;font-weight:700;color:var(--teal);margin-bottom:6px">' + cloudLine() + '</div>' : '') + '<div style="color:var(--ink2);font-size:13px;margin:0 0 4px">' + (IS_NATIVE ? "卸载 App 会清空数据，换手机前请先备份。" : CAP.framed ? "也可以导出一份备份文件自己留着。" : "从主屏幕删除 App 或清除 Safari 网站数据会清空数据，换手机前请先备份。") + '共 ' + S.notes.length + ' 条记事。</div>' +
     '<button class="sec" onclick="exportData()">导出备份（发到微信/文件）</button><button class="sec" onclick="importData()">从备份恢复</button><button class="sec" onclick="openExport()">⬇ 导出考勤和记事（Excel）</button><button class="sec" onclick="exportText()">导出记事为文字</button></div>';
   h += '<div class="card"><button class="sec danger" style="margin-top:0" onclick="resetAll()">恢复初始数据（清空所有记事）</button></div>';
-  h += '<div class="about"><img src="img/school_red.png" alt="河南经贸职业学院 国际学院（格里菲斯学院）"><div>我的课堂 v1.11 · 数据只保存在本机</div></div>';
+  h += '<div class="about"><img src="img/school_red.png" alt="河南经贸职业学院 国际学院（格里菲斯学院）"><div>我的课堂 v1.13 · 数据只保存在本机</div></div>';
   $("view").innerHTML = h;
 }
 function delSemester(id) {
@@ -1942,8 +1947,25 @@ function saveStu(cls, oldId) {
 }
 
 /* ---- 导入名单：Excel（学校成绩册 / 任意含“学号、姓名”列的表）或粘贴 ---- */
-var RIMP = null;
+var RIMP = null, RIMP_CTX = null;
+/* 班级名“核心”：去空格、统一括号、去掉“(国际)”这类括号备注，用来把名单表里的班名对上课表里的班名 */
+function clsCore(s) {
+  return String(s || "").replace(/[\s　]+/g, "").replace(/（/g, "(").replace(/）/g, ")").replace(/\([^)]*\)/g, "").replace(/班$/, "");
+}
+function matchClass(name, ctx) {
+  var all = allClassNames();
+  if (name && all.indexOf(name) >= 0) return name;
+  var core = clsCore(name);
+  if (core) {
+    var hit = all.filter(function (c) { return clsCore(c) === core; });
+    if (hit.length === 1) return hit[0];
+  }
+  // 从某个还没名单的班点进来导入、且表里没认出班名或认出的班课表里没有 → 归到这个班
+  if (ctx && !rosterOf(ctx).length && (!name || !hit || !hit.length)) return ctx;
+  return name;
+}
 function importRoster(cls) {
+  RIMP_CTX = cls || stuCls || null;
   var h = '<div class="shead"><div><h2>导入学生名单</h2><div class="sh">学校成绩册、教务导出的名单表都可以，只要有“学号”“姓名”两列</div></div><button class="xbtn" onclick="closeSheet()">✕</button></div>';
   h += '<button class="prim" onclick="pickRosterFiles()">📄 选择 Excel 文件（可多选）</button>';
   h += '<div style="font-size:12px;color:var(--ink3);margin-top:6px">支持 .xlsx / .xls，会自动识别表头里的“班级：”。可以一次选几个班的文件。</div>';
@@ -1978,6 +2000,8 @@ async function importRosterBufs(list) {
       });
     });
     if (!found.length) { notice("没有在表格里找到“学号”“姓名”两列。请确认是学生名单或成绩册。"); return; }
+    found.forEach(function (r) { r.orig = r.cls; r.cls = matchClass(r.cls, found.length === 1 ? RIMP_CTX : null); });
+    RIMP_CTX = null;
     RIMP = found; reviewRoster();
   } catch (e) { notice("读取表格失败：" + (e && e.message ? e.message : e)); }
 }
@@ -2008,13 +2032,15 @@ function parseRosterSheet(rows, fname) {
   return { cls: cls, list: list, fname: fname };
 }
 function reviewRoster() {
-  var classes = rosterClasses();
+  var classes = allClassNames();
   var h = '<div class="shead"><div><h2>识别到 ' + RIMP.length + ' 个名单</h2><div class="sh">核对班级名称（要和课表里的班级一致），再导入</div></div><button class="xbtn" onclick="closeSheet()">✕</button></div>';
   RIMP.forEach(function (r, i) {
-    var exist = rosterOf(r.cls).length;
+    var exist = rosterOf(r.cls).length, known = allClassNames().indexOf(r.cls) >= 0;
     h += '<div class="card imp"><div style="font-size:12px;color:var(--ink3)">' + esc(r.fname || "") + '</div>' +
       '<input list="rcl" value="' + esc(r.cls) + '" placeholder="班级名称" onchange="RIMP[' + i + '].cls=this.value.trim();reviewRoster()">' +
       '<div style="font-size:13px;margin-top:6px"><b>' + r.list.length + '</b> 人：' + esc(r.list.slice(0, 6).map(function (x) { return x.name; }).join("、")) + (r.list.length > 6 ? "…" : "") + '</div>' +
+      (r.orig && r.orig !== r.cls ? '<div style="font-size:12px;color:var(--teal2);margin-top:2px">表里写的是“' + esc(r.orig) + '”，已自动对应到课表里的“' + esc(r.cls) + '”</div>' : "") +
+      (r.cls && !known ? '<div style="font-size:12px;color:var(--red);margin-top:2px">⚠ 课表里没有这个班，导入后会新建一个班级。如果是课表里的某个班，请在上面选成它：</div><select style="margin-top:4px" onchange="if(this.value){RIMP[' + i + '].cls=this.value;reviewRoster()}"><option value="">选择课表里的班级…</option>' + classes.map(function (c) { return '<option>' + esc(c) + '</option>'; }).join("") + '</select>' : "") +
       (exist ? '<div style="font-size:12px;color:var(--amber);margin-top:2px">这个班已有 ' + exist + ' 人；导入后按学号更新，已设置的休学等状态会保留</div>' : "") + '</div>';
   });
   h += '<datalist id="rcl">' + classes.map(function (c) { return '<option value="' + esc(c) + '">'; }).join("") + '</datalist>';
@@ -2601,8 +2627,9 @@ function deleteClassSheet(cls) {
   var h = '<div class="shead"><div><h2>删除班级</h2><div class="sh">' + esc(cls) + '</div></div><button class="xbtn" onclick="openClassMgr()">✕</button></div>';
   h += '<div class="card" style="font-size:14px;line-height:1.8">' +
     '<label class="check" style="margin:0"><input type="checkbox" checked disabled>删除学生名单（' + x.stu + ' 人）</label>' +
-    '<label class="check" style="margin:0"><input type="checkbox" id="dc_courses"' + (x.allCourses ? " checked" : " disabled") + '>同时删除课表里这个班的课' + (x.allCourses ? "（共 " + x.allCourses + " 节/周）" : "（没有）") + '</label>' +
+    '<label class="check" style="margin:0"><input type="checkbox" id="dc_courses"' + (x.allCourses ? "" : " disabled") + '>同时删除课表里这个班的课' + (x.allCourses ? "（共 " + x.allCourses + " 节/周）" : "（没有）") + '</label>' +
     '<label class="check" style="margin:0"><input type="checkbox" id="dc_notes"' + (x.notes ? "" : " disabled") + '>同时删除这个班的记事和考勤' + (x.notes ? "（" + x.notes + " 条）" : "（没有）") + '</label></div>';
+  if (x.allCourses) h += '<div class="hint" style="color:var(--red)">这个班在课表里还有课。如果只是导入名单时多出了一个同名班级，不要删，用“改名”填成另一个班的名字，两个班就会合并。</div>';
   if (x.notes) h += '<div class="hint">不勾选“记事和考勤”的话，历史记录会保留，以后还能在“记事”里查看和导出。删除前建议先导出一份 Excel。</div>';
   h += '<button class="prim" style="background:var(--red)" onclick="doDeleteClass(\'' + k + '\')">删除这个班级</button>';
   openSheet(h);
@@ -2649,6 +2676,142 @@ function doMoveStu(cls, id) {
   var copy = Object.assign({}, st); delete copy._seq; dst.push(copy);
   S.rosters[cls] = rosterOf(cls).filter(function (x) { return x.id !== id; });
   save(); closeSheet(); toast(st.name + " 已调到 " + short(to)); render();
+}
+
+/* ================= 课表长按拖动调课 ================= */
+var DRAG = null, dragEndAt = 0;
+function dptOf(e) { var t = e.touches && e.touches[0] ? e.touches[0] : (e.changedTouches && e.changedTouches[0] ? e.changedTouches[0] : e); return { x: t.clientX, y: t.clientY }; }
+function dragDown(e) {
+  if (tab !== "table" || tableMode !== "week" || DRAG) return;
+  if (e.type === "mousedown" && e.button !== 0) return;
+  var tc = e.target.closest ? e.target.closest(".tc[data-oid]") : null; if (!tc) return;
+  var p0 = dptOf(e), touch = e.type === "touchstart";
+  DRAG = { el: tc, oid: tc.dataset.oid, x0: p0.x, y0: p0.y, pt: p0, active: false, touch: touch, target: null,
+    timer: setTimeout(function () { dragActivate(); }, 420) };
+  document.addEventListener(touch ? "touchmove" : "mousemove", dragMove, { passive: false });
+  document.addEventListener(touch ? "touchend" : "mouseup", dragUp, { passive: false });
+  if (touch) document.addEventListener("touchcancel", dragUp, { passive: false });
+}
+function dragActivate() {
+  if (!DRAG) return;
+  DRAG.active = true;
+  try { if (navigator.vibrate) navigator.vibrate(18); } catch (e) {}
+  var r = DRAG.el.getBoundingClientRect(), g = DRAG.el.cloneNode(true);
+  g.className += " dragghost"; g.removeAttribute("onclick");
+  g.style.width = r.width + "px"; g.style.height = r.height + "px";
+  DRAG.dx = DRAG.pt.x - r.left; DRAG.dy = DRAG.pt.y - r.top;
+  document.body.appendChild(g); DRAG.ghost = g;
+  DRAG.el.classList.add("dragsrc"); document.body.classList.add("dragmode");
+  dragPlace();
+  toast("拖到空白格子再松手");
+}
+function dragPlace() {
+  var g = DRAG.ghost; if (!g) return;
+  g.style.transform = "translate(" + (DRAG.pt.x - DRAG.dx) + "px," + (DRAG.pt.y - DRAG.dy) + "px) scale(1.06) rotate(-2deg)";
+}
+function dragMove(e) {
+  if (!DRAG) return;
+  DRAG.pt = dptOf(e);
+  if (!DRAG.active) {
+    if (Math.abs(DRAG.pt.x - DRAG.x0) > 10 || Math.abs(DRAG.pt.y - DRAG.y0) > 10) dragCleanup(); // 手指在滑动页面，不是长按
+    return;
+  }
+  e.preventDefault();
+  dragPlace();
+  // 靠近屏幕上下边缘时自动滚动
+  var H = window.innerHeight;
+  if (DRAG.pt.y > H - 90) window.scrollBy(0, 12); else if (DRAG.pt.y < 90) window.scrollBy(0, -12);
+  DRAG.ghost.style.visibility = "hidden";
+  var under = document.elementFromPoint(DRAG.pt.x, DRAG.pt.y);
+  DRAG.ghost.style.visibility = "";
+  var td = under && under.closest ? under.closest(".td[data-ds]") : null;
+  if (DRAG.target && DRAG.target !== td) DRAG.target.classList.remove("drop-ok", "drop-no");
+  DRAG.target = td;
+  if (td) td.classList.add(dropOk(td) ? "drop-ok" : "drop-no");
+}
+function dropOk(td) {
+  if (!td || td.dataset.empty !== "1") return false;
+  var o = findOcc(DRAG.oid); if (!o) return false;
+  var d = parseYmd(td.dataset.ds), pt = S.periods[td.dataset.p]; if (!pt) return false;
+  return at(d, timesFor(Object.assign({}, o.co, { p: td.dataset.p })).t[1]) > new Date();
+}
+function dragUp(e) {
+  if (!DRAG) return;
+  var d = DRAG;
+  if (d.active) {
+    if (e && e.cancelable) e.preventDefault();
+    dragEndAt = Date.now();
+    var td = d.target;
+    dragCleanup();
+    if (td && td.dataset.empty === "1") {
+      DRAG = d; var ok = dropOk(td); DRAG = null;
+      if (ok) setTimeout(function () { dropSheet(d.oid, td.dataset.ds, td.dataset.p); }, 80);
+      else toast("这个时间已经过去了");
+    } else if (td) toast("这个时间已经有课了");
+    return;
+  }
+  dragCleanup();
+}
+function dragCleanup() {
+  if (!DRAG) return;
+  clearTimeout(DRAG.timer);
+  if (DRAG.ghost) DRAG.ghost.remove();
+  if (DRAG.el) DRAG.el.classList.remove("dragsrc");
+  if (DRAG.target) DRAG.target.classList.remove("drop-ok", "drop-no");
+  document.body.classList.remove("dragmode");
+  document.removeEventListener("touchmove", dragMove); document.removeEventListener("mousemove", dragMove);
+  document.removeEventListener("touchend", dragUp); document.removeEventListener("mouseup", dragUp); document.removeEventListener("touchcancel", dragUp);
+  DRAG = null;
+}
+$("view").addEventListener("touchstart", dragDown, { passive: true });
+$("view").addEventListener("mousedown", dragDown);
+// 只拦截松手那一下落在课表或遮罩上的点击，弹出的确认框里的按钮不受影响
+document.addEventListener("click", function (e) {
+  if (Date.now() - dragEndAt < 600 && e.target.closest && (e.target.closest("#view") || e.target.id === "mask")) { e.stopPropagation(); e.preventDefault(); }
+}, true);
+document.addEventListener("contextmenu", function (e) { if (DRAG || (e.target.closest && e.target.closest(".tc[data-oid]"))) e.preventDefault(); });
+
+/* 松手后：只调这一次 / 从本周起每周都这样 */
+var DROP = null;
+function dropSheet(oid, ds, p) {
+  var o = findOcc(oid); if (!o) return;
+  var a = o.adj, isAdd = a && a.kind === "add";
+  var base = isAdd ? null : courseById(a && a.cid ? a.cid : o.co.id);
+  var odate = a && a.kind === "move" ? a.odate : o.date;
+  DROP = { o: o, ds: ds, p: p, base: base, odate: odate, isAdd: isAdd };
+  var nd = parseYmd(ds), tm = timesFor(Object.assign({}, o.co, { p: p }));
+  var h = '<div class="shead"><div><h2>调课</h2><div class="sh">' + esc(short(o.co.cls)) + " · " + esc(o.co.name) + '</div></div><button class="xbtn" onclick="closeSheet()">✕</button></div>';
+  h += '<div class="mvbox"><div><i>原来</i><b>' + md(parseYmd(o.date)) + " " + WD[dow(parseYmd(o.date))] + '</b><span>' + pLabel(o.co.p) + " · " + esc(o.co.room) + '</span></div><em>→</em>' +
+    '<div class="to"><i>调到</i><b>' + md(nd) + " " + WD[dow(nd)] + '</b><span>' + pLabel(p) + " " + tm.t[0] + "–" + tm.t[1] + '</span></div></div>';
+  h += '<label class="fl">教室 <em>没变就不用改</em></label><input id="dp_room" inputmode="numeric" value="' + esc(o.co.room) + '">';
+  h += '<button class="prim" onclick="applyDrop(false)">只调这一次</button>';
+  if (base) h += '<button class="sec" onclick="applyDrop(true)">从本周起，以后每周都这样上</button>';
+  h += '<div style="font-size:12px;color:var(--ink3);margin-top:8px">打卡时间、提醒、教学日志会按新时间自动跟着变；4、5 号楼的单独作息也会自动换算。</div>';
+  openSheet(h);
+}
+function applyDrop(every) {
+  var d = DROP; if (!d) return;
+  var room = $("dp_room").value.trim() || d.o.co.room, o = d.o, nd = parseYmd(d.ds);
+  if (d.isAdd) {
+    var ad = S.adjust.find(function (x) { return x.id === o.adj.id; });
+    if (ad) { ad.date = d.ds; ad.p = d.p; ad.room = room; }
+  } else if (!every) {
+    S.adjust = S.adjust.filter(function (x) { return !(x.odate === d.odate && x.cid === d.base.id && x.kind !== "add"); });
+    if (!(d.ds === d.odate && d.p === d.base.p && room === d.base.room))
+      S.adjust.push({ id: uid(), kind: "move", odate: d.odate, cid: d.base.id, op: d.base.p, oroom: d.base.room, date: d.ds, p: d.p, room: room, note: "拖动调课" });
+  } else {
+    var sem = semFor(nd) || tableSem(), w = weekOf(nd, sem), c = d.base;
+    // 本次的单次调课不再需要
+    S.adjust = S.adjust.filter(function (x) { return !(x.odate === d.odate && x.cid === c.id && x.kind !== "add"); });
+    if (c.w1 < w) {
+      var nc = Object.assign({}, c, { id: uid(), day: dow(nd), p: d.p, room: room, w1: w });
+      c.w2 = w - 1;
+      sem.courses.push(nc);
+    } else { c.day = dow(nd); c.p = d.p; c.room = room; }
+  }
+  DROP = null;
+  save(); closeSheet(); render();
+  toast(every ? "已改为每周" + WD[dow(nd)] + " " + pLabel(d.p) : "已调到 " + md(nd) + " " + WD[dow(nd)] + " " + pLabel(d.p));
 }
 
 /* ================= 启动 ================= */
