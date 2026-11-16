@@ -955,6 +955,7 @@ function renderSet() {
       '<div class="btns3"><button class="mini" onclick="importSchedule(\'' + s.id + '\')">📷 更换课表</button><button class="mini" onclick="editSemester(\'' + s.id + '\')">编辑校历</button>' +
       (S.semesters.length > 1 ? '<button class="mini" style="background:var(--redbg);color:var(--red)" onclick="delSemester(\'' + s.id + '\')">删除</button>' : "") + '</div></div>';
   });
+  h += '<button class="sec" style="margin:0 0 10px" onclick="openClassMgr()">👥 班级管理（新建 / 改名 / 删除）</button>';
   h += '<div class="two"><button class="sec" style="margin-top:0" onclick="importCalendar()">📷 导入新校历图片</button><button class="sec" style="margin-top:0" onclick="editSemester(null)">＋ 手动新建学期</button></div>';
   h += '<div style="font-size:12px;color:var(--ink3);margin:8px 2px 0">日期落在哪个学期，App 就自动切到哪个学期；放假日不排课，调课日按“补周几”的课表上。</div>';
 
@@ -983,7 +984,7 @@ function renderSet() {
   h += '<div class="sect">数据</div><div class="card">' + (CAP.framed ? '<div id="cloudline" style="font-size:13px;font-weight:700;color:var(--teal);margin-bottom:6px">' + cloudLine() + '</div>' : '') + '<div style="color:var(--ink2);font-size:13px;margin:0 0 4px">' + (IS_NATIVE ? "卸载 App 会清空数据，换手机前请先备份。" : CAP.framed ? "也可以导出一份备份文件自己留着。" : "从主屏幕删除 App 或清除 Safari 网站数据会清空数据，换手机前请先备份。") + '共 ' + S.notes.length + ' 条记事。</div>' +
     '<button class="sec" onclick="exportData()">导出备份（发到微信/文件）</button><button class="sec" onclick="importData()">从备份恢复</button><button class="sec" onclick="openExport()">⬇ 导出考勤和记事（Excel）</button><button class="sec" onclick="exportText()">导出记事为文字</button></div>';
   h += '<div class="card"><button class="sec danger" style="margin-top:0" onclick="resetAll()">恢复初始数据（清空所有记事）</button></div>';
-  h += '<div class="about"><img src="img/school_red.png" alt="河南经贸职业学院 国际学院（格里菲斯学院）"><div>我的课堂 v1.10 · 数据只保存在本机</div></div>';
+  h += '<div class="about"><img src="img/school_red.png" alt="河南经贸职业学院 国际学院（格里菲斯学院）"><div>我的课堂 v1.11 · 数据只保存在本机</div></div>';
   $("view").innerHTML = h;
 }
 function delSemester(id) {
@@ -1855,7 +1856,7 @@ function renderStudents() {
   var cnt = {}; all.forEach(function (st) { if (!isActive(st)) cnt[st.st] = (cnt[st.st] || 0) + 1; });
   h += '<div class="card" style="margin-top:10px;padding:12px 14px"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><div><b>' + esc(stuCls) + '</b><div style="font-size:13px;color:var(--ink2)">在读 <b style="color:var(--teal)">' + act.length + '</b> 人 · 共 ' + all.length + ' 人' +
     Object.keys(cnt).map(function (k) { return " · " + k + " " + cnt[k]; }).join("") + '</div></div>' +
-    '<div style="display:flex;gap:6px;flex-direction:column"><button class="mini" onclick="importRoster(\'' + esc(jsq(stuCls)) + '\')">导入/更新</button><button class="mini" onclick="openExport()">导出考勤</button></div></div></div>';
+    '<div style="display:flex;gap:6px;flex-direction:column"><button class="mini" onclick="importRoster(\'' + esc(jsq(stuCls)) + '\')">导入/更新</button><button class="mini" onclick="openExport()">导出考勤</button><button class="mini" onclick="openClassMgr()">班级管理</button></div></div></div>';
   if (!all.length) {
     h += '<div class="card empty">这个班还没有名单。点上方“导入/更新”，或<button class="mini" onclick="addStu()">手动添加</button></div>';
     $("view").innerHTML = h; return;
@@ -1900,6 +1901,7 @@ function openStu(cls, id) {
     h += '<div class="row" style="cursor:default"><div class="m"><div class="c" style="font-weight:700">' + md(d) + " " + WD[dow(d)] + (n.p ? " · " + pLabel(n.p) : "") + '</div><div class="s">' + esc(n.course || "") + '</div></div><div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end">' + bits.join("") + '</div></div>';
   });
   h += '<button class="sec" onclick="editStu(\'' + esc(jsq(cls)) + '\',\'' + esc(jsq(id)) + '\')">修改姓名 / 学号</button>';
+  h += '<button class="sec" onclick="moveStuSheet(\'' + esc(jsq(cls)) + '\',\'' + esc(jsq(id)) + '\')">调到其他班</button>';
   h += '<button class="sec danger" onclick="ask(\'从名单中删除 ' + esc(jsq(st.name)) + '？（已有记录保留，名字会显示为学号）\',function(){delStu(\'' + esc(jsq(cls)) + '\',\'' + esc(jsq(id)) + '\')},\'删除\')">从名单删除</button>';
   openSheet(h);
 }
@@ -2516,6 +2518,137 @@ function blobDownload(bytes, name, mime) {
   a.href = url; a.download = name; document.body.appendChild(a); a.click();
   setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 5000);
   toast("已导出：" + name);
+}
+
+/* ================= 班级管理：新建 / 改名（同名则合并）/ 删除 / 学生调班 ================= */
+function allClassNames() {
+  var a = Object.keys(S.rosters || {});
+  S.semesters.forEach(function (sem) { sem.courses.forEach(function (c) { a.push(c.cls); }); });
+  S.notes.forEach(function (n) { if (n.cls) a.push(n.cls); });
+  (S.adjust || []).forEach(function (x) { if (x.kind === "add" && x.cls) a.push(x.cls); });
+  return uniq(a).sort();
+}
+function classInfo(cls) {
+  var sem = curSem(), all = 0;
+  S.semesters.forEach(function (s) { all += s.courses.filter(function (c) { return c.cls === cls; }).length; });
+  return {
+    stu: rosterOf(cls).length, act: activeOf(cls).length,
+    week: sem ? sem.courses.filter(function (c) { return c.cls === cls; }).length : 0, allCourses: all,
+    courses: uniq((sem ? sem.courses : []).filter(function (c) { return c.cls === cls; }).map(function (c) { return c.name; })),
+    notes: S.notes.filter(function (n) { return n.cls === cls; }).length
+  };
+}
+function openClassMgr() {
+  var list = allClassNames();
+  var h = '<div class="shead"><div><h2>班级管理</h2><div class="sh">改名会同步到课表、名单、记事和考勤；新名字和已有班级相同时会合并</div></div><button class="xbtn" onclick="closeSheet()">✕</button></div>';
+  if (!list.length) h += '<div class="card empty">还没有班级。导入课表或学生名单后会出现在这里。</div>';
+  list.forEach(function (cls) {
+    var x = classInfo(cls), k = esc(jsq(cls));
+    h += '<div class="card" style="padding:12px 14px;margin-bottom:8px"><div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><div style="min-width:0"><b>' + esc(cls) + '</b>' +
+      '<div style="font-size:12.5px;color:var(--ink2);margin-top:2px">' + (x.stu ? "学生 " + x.stu + " 人" + (x.act < x.stu ? "（在读 " + x.act + "）" : "") : "没有名单") +
+      " · " + (x.week ? "本学期每周 " + x.week + " 节" : "本学期没有课") + (x.notes ? " · 记事 " + x.notes + " 条" : "") + '</div>' +
+      (x.courses.length ? '<div style="font-size:12px;color:var(--ink3)">' + esc(x.courses.join("、")) + '</div>' : "") + '</div>' +
+      '<div style="display:flex;flex-direction:column;gap:6px;flex:none"><button class="mini" onclick="renameClassSheet(\'' + k + '\')">改名</button><button class="mini" style="background:var(--redbg);color:var(--red)" onclick="deleteClassSheet(\'' + k + '\')">删除</button></div></div></div>';
+  });
+  h += '<button class="sec" onclick="newClassSheet()">＋ 新建班级</button>';
+  openSheet(h);
+}
+function newClassSheet() {
+  openSheet('<div class="shead"><div><h2>新建班级</h2><div class="sh">建好后可以导入名单或手动添加学生；在课表里添加课程时也能选到它</div></div><button class="xbtn" onclick="openClassMgr()">✕</button></div>' +
+    '<label class="fl">班级名称</label><input id="nc_name" placeholder="例如：25会计4(国际)">' +
+    '<button class="prim" onclick="createClass()">创建</button>');
+  setTimeout(function () { var i = $("nc_name"); if (i) i.focus(); }, 100);
+}
+function createClass() {
+  var n = $("nc_name").value.trim(); if (!n) { toast("请填写班级名称"); return; }
+  if (allClassNames().indexOf(n) >= 0) { toast("已经有这个班级了"); return; }
+  S.rosters[n] = []; stuCls = n; save(); toast("已创建：" + n); tab = "stu"; closeSheet(); render();
+}
+function renameClassSheet(cls) {
+  var others = allClassNames().filter(function (c) { return c !== cls; });
+  openSheet('<div class="shead"><div><h2>班级改名</h2><div class="sh">原名：' + esc(cls) + '</div></div><button class="xbtn" onclick="openClassMgr()">✕</button></div>' +
+    '<label class="fl">新名称 <em>填已有班级的名字 = 把两个班合并</em></label><input id="rc_name" list="rc_list" value="' + esc(cls) + '"><datalist id="rc_list">' + others.map(function (c) { return '<option value="' + esc(c) + '">'; }).join("") + '</datalist>' +
+    '<div class="hint">课表、学生名单、记事、考勤、教学日志里这个班的名字都会一起改。</div>' +
+    '<button class="prim" onclick="doRenameClass(\'' + esc(jsq(cls)) + '\')">保存</button>');
+}
+function doRenameClass(old) {
+  var neu = $("rc_name").value.trim();
+  if (!neu || neu === old) { openClassMgr(); return; }
+  var merging = allClassNames().indexOf(neu) >= 0;
+  var go = function () { renameClass(old, neu); toast(merging ? "已合并到：" + neu : "已改名为：" + neu); openClassMgr(); render(); };
+  if (merging) ask("“" + neu + "”已经存在，要把“" + old + "”合并进去吗？\n名单按学号合并，课表和记事都归到“" + neu + "”。", go, "合并");
+  else go();
+}
+function renameClass(old, neu) {
+  // 名单：同学号的保留目标班的状态，其余追加
+  var src = rosterOf(old), dst = (S.rosters[neu] || []).slice();
+  src.forEach(function (st) { if (!dst.some(function (x) { return x.id === st.id; })) dst.push(st); });
+  if (src.length || S.rosters[neu]) S.rosters[neu] = dst;
+  delete S.rosters[old];
+  S.semesters.forEach(function (sem) { sem.courses.forEach(function (c) { if (c.cls === old) c.cls = neu; }); });
+  S.notes.forEach(function (n) { if (n.cls === old) { n.cls = neu; n.key = neu + "｜" + (n.course || ""); } });
+  (S.adjust || []).forEach(function (a) { if (a.cls === old) a.cls = neu; });
+  ["planPick", "jdone"].forEach(function (f) {
+    var o = S[f]; if (!o) return;
+    Object.keys(o).forEach(function (k) { var suf = "|" + old; if (k.slice(-suf.length) === suf) { o[k.slice(0, -suf.length) + "|" + neu] = o[k]; delete o[k]; } });
+  });
+  if (stuCls === old) stuCls = neu;
+  if (noteFilter && noteFilter.indexOf(old + "｜") === 0) noteFilter = neu + noteFilter.slice(old.length);
+  save();
+}
+function deleteClassSheet(cls) {
+  var x = classInfo(cls), k = esc(jsq(cls));
+  var h = '<div class="shead"><div><h2>删除班级</h2><div class="sh">' + esc(cls) + '</div></div><button class="xbtn" onclick="openClassMgr()">✕</button></div>';
+  h += '<div class="card" style="font-size:14px;line-height:1.8">' +
+    '<label class="check" style="margin:0"><input type="checkbox" checked disabled>删除学生名单（' + x.stu + ' 人）</label>' +
+    '<label class="check" style="margin:0"><input type="checkbox" id="dc_courses"' + (x.allCourses ? " checked" : " disabled") + '>同时删除课表里这个班的课' + (x.allCourses ? "（共 " + x.allCourses + " 节/周）" : "（没有）") + '</label>' +
+    '<label class="check" style="margin:0"><input type="checkbox" id="dc_notes"' + (x.notes ? "" : " disabled") + '>同时删除这个班的记事和考勤' + (x.notes ? "（" + x.notes + " 条）" : "（没有）") + '</label></div>';
+  if (x.notes) h += '<div class="hint">不勾选“记事和考勤”的话，历史记录会保留，以后还能在“记事”里查看和导出。删除前建议先导出一份 Excel。</div>';
+  h += '<button class="prim" style="background:var(--red)" onclick="doDeleteClass(\'' + k + '\')">删除这个班级</button>';
+  openSheet(h);
+}
+function doDeleteClass(cls) {
+  var withCourses = $("dc_courses") && $("dc_courses").checked, withNotes = $("dc_notes") && $("dc_notes").checked;
+  ask("确定删除“" + cls + "”？" + (withNotes ? "\n记事和考勤也会一起删除，无法恢复。" : ""), function () {
+    deleteClass(cls, { courses: withCourses, notes: withNotes });
+    toast("已删除：" + cls); openClassMgr(); render();
+  }, "删除");
+}
+function deleteClass(cls, opt) {
+  delete S.rosters[cls];
+  if (opt.courses) {
+    var gone = {};
+    S.semesters.forEach(function (sem) { sem.courses = sem.courses.filter(function (c) { if (c.cls === cls) { gone[c.id] = 1; return false; } return true; }); });
+    S.adjust = (S.adjust || []).filter(function (a) { return a.cls !== cls && !gone[a.cid]; });
+  }
+  if (opt.notes) {
+    S.notes = S.notes.filter(function (n) { return n.cls !== cls; });
+    ["planPick", "jdone"].forEach(function (f) { var o = S[f]; if (o) Object.keys(o).forEach(function (k) { if (k.slice(-(cls.length + 1)) === "|" + cls) delete o[k]; }); });
+  }
+  if (stuCls === cls) stuCls = null;
+  if (noteFilter && noteFilter.indexOf(cls + "｜") === 0) noteFilter = "all";
+  save();
+}
+/* 学生调班：从原班名单移到新班；原班已有的考勤和记事保留在原班 */
+function moveStuSheet(cls, id) {
+  var st = stuOf(cls, id); if (!st) return;
+  var others = allClassNames().filter(function (c) { return c !== cls; });
+  var h = '<div class="shead"><div><h2>调到其他班</h2><div class="sh">' + esc(st.name) + " · " + esc(short(cls)) + '</div></div><button class="xbtn" onclick="openStu(\'' + esc(jsq(cls)) + '\',\'' + esc(jsq(id)) + '\')">✕</button></div>';
+  h += '<label class="fl">调到</label><select id="mv_to">' + others.map(function (c) { return '<option>' + esc(c) + '</option>'; }).join("") + '<option value="">新班级…</option></select>';
+  h += '<input id="mv_new" placeholder="新班级名称" style="margin-top:6px">';
+  h += '<div class="hint">在原班的考勤和课堂记录会留在原班，不会跟着走。</div>';
+  h += '<button class="prim" onclick="doMoveStu(\'' + esc(jsq(cls)) + '\',\'' + esc(jsq(id)) + '\')">调班</button>';
+  openSheet(h);
+}
+function doMoveStu(cls, id) {
+  var to = $("mv_to").value || $("mv_new").value.trim();
+  if (!to) { toast("请选择或填写班级"); return; }
+  var st = stuOf(cls, id); if (!st) return;
+  var dst = S.rosters[to] = (S.rosters[to] || []).slice();
+  if (dst.some(function (x) { return x.id === id; })) { toast("“" + to + "”里已经有这个学号"); return; }
+  var copy = Object.assign({}, st); delete copy._seq; dst.push(copy);
+  S.rosters[cls] = rosterOf(cls).filter(function (x) { return x.id !== id; });
+  save(); closeSheet(); toast(st.name + " 已调到 " + short(to)); render();
 }
 
 /* ================= 启动 ================= */
